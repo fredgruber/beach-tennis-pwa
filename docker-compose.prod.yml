@@ -1,0 +1,27 @@
+# =========================================================
+# Arena Beach Tennis - Ambiente de Produção
+# Uso: docker compose -f docker-compose.prod.yml up -d
+# =========================================================
+services:
+  app:
+    image: ${DOCKER_IMAGE:-beach-tennis-pwa}:${IMAGE_TAG:-latest}
+    container_name: beach-tennis-prod
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persiste o banco H2 num volume gerenciado pelo Docker
+      - beach_tennis_data:/app/data
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - JAVA_OPTS=-Xmx256m -Xms128m -XX:+UseContainerSupport
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/players"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  beach_tennis_data:
+    name: beach_tennis_data

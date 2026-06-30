@@ -1,0 +1,25 @@
+# =========================================================
+# Arena Beach Tennis - Ambiente de Desenvolvimento Local
+# Uso: ./dev.sh   (ou: docker compose up)
+# =========================================================
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: beach-tennis-dev
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persiste o banco H2 na pasta local ./data
+      - ./data:/app/data
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/players"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

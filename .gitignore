@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+out/
+
+# Spring Boot
+target/
+
+# Banco de dados H2 local (não versionar dados!)
+data/
+*.db
+
+# IntelliJ / VSCode
+.idea/
+*.iml
+.vscode/
+*.class
+
+# Mac
+.DS_Store
+
+# Docker
+*.log
+
+# Variáveis de ambiente locais
+.env
+.env.local

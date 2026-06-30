@@ -1,0 +1,133 @@
+package com.beachtennis.controller;
+
+import com.beachtennis.model.Tournament;
+import com.beachtennis.model.TournamentMatch;
+import com.beachtennis.model.TournamentType;
+import com.beachtennis.repository.TournamentMatchRepository;
+import com.beachtennis.repository.TournamentRepository;
+import com.beachtennis.service.TournamentService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/tournaments")
+@CrossOrigin(origins = "*")
+public class TournamentController {
+
+    @Autowired
+    private TournamentService tournamentService;
+
+    @Autowired
+    private TournamentRepository tournamentRepository;
+
+    @Autowired
+    private TournamentMatchRepository matchRepository;
+
+    @GetMapping
+    public List<Tournament> getAllTournaments() {
+        return tournamentRepository.findAll();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Tournament> getTournamentById(@PathVariable Long id) {
+        return tournamentRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/dupla-fixa")
+    public ResponseEntity<Tournament> createDuplaFixaTournament(@RequestBody DuplaFixaRequest request) {
+        try {
+            Tournament tournament = tournamentService.createDuplaFixaTournament(request.getName(), request.getTeams());
+            return new ResponseEntity<>(tournament, HttpStatus.CREATED);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PostMapping("/rei-da-praia")
+    public ResponseEntity<Tournament> createReiDaPraiaTournament(@RequestBody ReiDaPraiaRequest request) {
+        try {
+            Tournament tournament = tournamentService.createReiDaPraiaTournament(request.getName(), request.getPlayerIds());
+            return new ResponseEntity<>(tournament, HttpStatus.CREATED);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/{id}/matches")
+    public ResponseEntity<List<TournamentMatch>> getTournamentMatches(@PathVariable Long id) {
+        return tournamentRepository.findById(id)
+                .map(t -> ResponseEntity.ok(matchRepository.findByTournament(t)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/matches/{matchId}")
+    public ResponseEntity<TournamentMatch> updateMatchScore(
+            @PathVariable Long matchId,
+            @RequestBody MatchScoreRequest request) {
+        try {
+            TournamentMatch updatedMatch = tournamentService.updateMatchScore(matchId, request.getScore1(), request.getScore2());
+            return ResponseEntity.ok(updatedMatch);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/{id}/standings")
+    public ResponseEntity<?> getTournamentStandings(@PathVariable Long id) {
+        return tournamentRepository.findById(id)
+                .map(t -> {
+                    if (t.getType() == TournamentType.DUPLA_FIXA) {
+                        return ResponseEntity.ok(tournamentService.getDuplaFixaStandings(id));
+                    } else {
+                        return ResponseEntity.ok(tournamentService.getReiDaPraiaStandings(id));
+                    }
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteTournament(@PathVariable Long id) {
+        if (tournamentRepository.existsById(id)) {
+            tournamentRepository.deleteById(id);
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    // Request DTOs
+    public static class DuplaFixaRequest {
+        private String name;
+        private List<List<Long>> teams;
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public List<List<Long>> getTeams() { return teams; }
+        public void setTeams(List<List<Long>> teams) { this.teams = teams; }
+    }
+
+    public static class ReiDaPraiaRequest {
+        private String name;
+        private List<Long> playerIds;
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public List<Long> getPlayerIds() { return playerIds; }
+        public void setPlayerIds(List<Long> playerIds) { this.playerIds = playerIds; }
+    }
+
+    public static class MatchScoreRequest {
+        private int score1;
+        private int score2;
+
+        public int getScore1() { return score1; }
+        public void setScore1(int score1) { this.score1 = score1; }
+        public int getScore2() { return score2; }
+        public void setScore2(int score2) { this.score2 = score2; }
+    }
+}
