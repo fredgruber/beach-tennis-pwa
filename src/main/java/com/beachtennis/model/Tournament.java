@@ -19,7 +19,7 @@ public class Tournament {
     @Enumerated(EnumType.STRING)
     private TournamentStatus status;
 
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "tournament_players",
         joinColumns = @JoinColumn(name = "tournament_id"),
