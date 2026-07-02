@@ -4,7 +4,7 @@
 
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.0-6DB33F?style=for-the-badge&logo=spring-boot)
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk)
-![H2 Database](https://img.shields.io/badge/H2-Database-1F4F85?style=for-the-badge&logo=databricks)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?style=for-the-badge&logo=postgresql)
 ![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?style=for-the-badge&logo=docker)
 ![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=for-the-badge&logo=pwa)
 
@@ -53,7 +53,7 @@ A **Arena BT Brothers** é uma Progressive Web App (PWA) desenvolvida para geren
 | 📊 **Classificação em Tempo Real** | Tabela atualizada automaticamente após cada resultado |
 | 🔢 **Critérios de Desempate** | Ordenação por GP → Vitórias → Saldo de Games (SG) |
 | 📱 **PWA Instalável** | Funciona offline e pode ser instalado como app nativo |
-| 🗄️ **Persistência de Dados** | Banco H2 em arquivo — dados mantidos entre reinicializações |
+| 🗄️ **Persistência de Dados** | Banco PostgreSQL (Neon) — dados persistentes em nuvem |
 
 ---
 
@@ -63,7 +63,7 @@ A **Arena BT Brothers** é uma Progressive Web App (PWA) desenvolvida para geren
 - **Java 21** — LTS com virtual threads
 - **Spring Boot 4.1.0** — Framework principal
 - **Spring Data JPA** — Persistência de dados
-- **H2 Database** — Banco de dados em arquivo (sem configuração extra)
+- **Neon (PostgreSQL)** — Banco de dados em nuvem (ou H2 para desenvolvimento local)
 - **Gradle** — Build tool
 
 ### Frontend
@@ -93,9 +93,10 @@ A **Arena BT Brothers** é uma Progressive Web App (PWA) desenvolvida para geren
 
 A aplicação estará disponível em:
 - 🌐 **App:** http://localhost:8080
-- 🗄️ **H2 Console:** http://localhost:8080/h2-console
+- 🗄️ **H2 Console (Local):** http://localhost:8080/h2-console
 
-> **JDBC URL para H2 Console:** `jdbc:h2:file:./data/beachtennis`
+> **JDBC URL para H2 Console (Local):** `jdbc:h2:file:./data/beachtennis`
+> **Produção:** Conecta automaticamente ao banco de dados relacional **Neon (PostgreSQL)** na nuvem.
 
 ### Subir manualmente com Docker Compose
 
@@ -289,7 +290,7 @@ beach-tennis-pwa/
 │       │       └── TeamStanding.java           # DTO de classificação por dupla
 │       └── resources/
 │           ├── application.properties          # Config desenvolvimento (H2)
-│           ├── application-prod.properties     # Config produção
+│           ├── application-prod.properties     # Config produção (Neon PostgreSQL)
 │           └── static/
 │               ├── index.html                  # Interface principal (PWA)
 │               ├── manifest.json               # Web App Manifest
@@ -297,7 +298,7 @@ beach-tennis-pwa/
 │               ├── css/style.css
 │               ├── js/app.js
 │               └── icons/                      # Ícones PWA (192x192, 512x512)
-├── data/                                       # Banco H2 persistido (gitignore)
+├── data/                                       # Banco H2 local de desenvolvimento (gitignore)
 ├── Dockerfile                                  # Imagem de produção multi-stage
 ├── docker-compose.yml                          # Desenvolvimento local
 ├── docker-compose.prod.yml                     # Produção
