@@ -93,6 +93,13 @@
                         <p>Nenhum torneio ativo no momento. Vá em "Novo Torneio" para começar!</p>
                     </div>
                 </div>
+
+                <div class="force-update-panel" style="margin-top: 3rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center;">
+                    <p class="text-xs text-muted">Se o aplicativo estiver lento ou não carregar os torneios, force a atualização:</p>
+                    <button class="btn-force-update" id="btn-force-update-app" style="padding: 0.6rem 1.2rem; font-size: 0.8rem;">
+                        <i class="fa-solid fa-arrows-rotate"></i> Forçar Atualização (Recarregar)
+                    </button>
+                </div>
             </section>
 
             <!-- TAB: Players -->
@@ -382,6 +389,17 @@
                 <button class="btn btn-secondary" id="btn-cancel-score">Cancelar</button>
                 <button class="btn btn-primary" id="btn-save-score">Confirmar Placar</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Wakeup alert / Spinner -->
+    <div id="wakeup-alert" class="wakeup-overlay" style="display: none;">
+        <div class="wakeup-card">
+            <div class="spinner-container">
+                <i class="fa-solid fa-circle-notch fa-spin"></i>
+            </div>
+            <h3>Acordando o Servidor...</h3>
+            <p>O servidor gratuito do Render dorme por inatividade. Estamos acordando ele, isso pode levar cerca de 50 segundos. Por favor, aguarde.</p>
         </div>
     </div>
 

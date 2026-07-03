@@ -35,8 +35,42 @@ class BeachTennisApp {
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('Service Worker registrado com sucesso:', reg.scope))
+                    .then(reg => {
+                        console.log('Service Worker registrado com sucesso:', reg.scope);
+                        
+                        // Verificar atualizações periodicamente (bom para iOS)
+                        setInterval(() => {
+                            reg.update();
+                        }, 30000); // 30 segundos
+                        
+                        // Atualizar quando voltar para o app
+                        document.addEventListener('visibilitychange', () => {
+                            if (document.visibilityState === 'visible') {
+                                reg.update();
+                            }
+                        });
+
+                        // Forçar atualização do app se o Service Worker for atualizado
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('Novo Service Worker instalado. Forçando recarregamento...');
+                                    this.forceUpdateApp();
+                                }
+                            });
+                        });
+                    })
                     .catch(err => console.error('Falha ao registrar Service Worker:', err));
+            });
+
+            // Atualiza a página quando o novo service worker assume o controle
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    refreshing = true;
+                    window.location.reload();
+                }
             });
         }
 
@@ -60,6 +94,74 @@ class BeachTennisApp {
                     if (installBtnContainer) installBtnContainer.style.display = 'none';
                 }
             });
+        }
+    }
+
+    async forceUpdateApp() {
+        console.log('Forçando limpeza de cache e atualização...');
+        if ('serviceWorker' in navigator) {
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (let registration of registrations) {
+                    await registration.unregister();
+                }
+            } catch (e) {
+                console.error('Erro ao remover Service Worker:', e);
+            }
+        }
+        if (window.caches) {
+            try {
+                const cacheNames = await caches.keys();
+                for (let name of cacheNames) {
+                    await caches.delete(name);
+                }
+            } catch (e) {
+                console.error('Erro ao deletar caches:', e);
+            }
+        }
+        // Forçar reload completo limpando cache no Safari/iOS
+        window.location.href = window.location.origin + window.location.pathname + '?t=' + Date.now();
+    }
+
+    async fetchWithRetry(url, options = {}, retries = 3, delay = 2000) {
+        // Se demorar mais de 1.8 segundos, exibe mensagem que está acordando o servidor Render
+        let wakeupTimer = setTimeout(() => {
+            const wakeupAlert = document.getElementById('wakeup-alert');
+            if (wakeupAlert) wakeupAlert.style.display = 'flex';
+        }, 1800);
+
+        try {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    // Adiciona timeout na requisição se demorar muito (ex: travado no Render gratuito)
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos timeout
+                    
+                    const fetchOptions = { ...options, signal: controller.signal };
+                    const response = await fetch(url, fetchOptions);
+                    clearTimeout(timeoutId);
+
+                    if (response.status >= 500 && i < retries - 1) {
+                        console.warn(`Erro no servidor (status ${response.status}). Tentando novamente...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+
+                    clearTimeout(wakeupTimer);
+                    const wakeupAlert = document.getElementById('wakeup-alert');
+                    if (wakeupAlert) wakeupAlert.style.display = 'none';
+                    return response;
+                } catch (err) {
+                    if (i === retries - 1) throw err;
+                    console.warn(`Falha na requisição. Tentando novamente em ${delay}ms...`, err);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        } catch (err) {
+            clearTimeout(wakeupTimer);
+            const wakeupAlert = document.getElementById('wakeup-alert');
+            if (wakeupAlert) wakeupAlert.style.display = 'none';
+            throw err;
         }
     }
 
@@ -144,6 +246,12 @@ class BeachTennisApp {
         document.getElementById('btn-close-modal').addEventListener('click', () => this.closeModal());
         document.getElementById('btn-cancel-score').addEventListener('click', () => this.closeModal());
         document.getElementById('btn-save-score').addEventListener('click', () => this.saveMatchScore());
+
+        // Botão de forçar atualização
+        const forceUpdateBtn = document.getElementById('btn-force-update-app');
+        if (forceUpdateBtn) {
+            forceUpdateBtn.addEventListener('click', () => this.forceUpdateApp());
+        }
     }
 
     // --- Navegação de Abas ---
@@ -215,7 +323,7 @@ class BeachTennisApp {
     // --- Métodos de API (Players) ---
     async loadPlayers() {
         try {
-            const res = await fetch(`${API_BASE}/players`);
+            const res = await this.fetchWithRetry(`${API_BASE}/players`);
             this.players = await res.json();
             this.renderPlayersList();
             document.getElementById('stat-players-count').innerText = this.players.length;
@@ -236,7 +344,7 @@ class BeachTennisApp {
         };
 
         try {
-            const res = await fetch(`${API_BASE}/players`, {
+            const res = await this.fetchWithRetry(`${API_BASE}/players`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(player)
@@ -279,7 +387,7 @@ class BeachTennisApp {
         if (importedList.length === 0) return;
 
         try {
-            const res = await fetch(`${API_BASE}/players/import`, {
+            const res = await this.fetchWithRetry(`${API_BASE}/players/import`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(importedList)
@@ -299,7 +407,7 @@ class BeachTennisApp {
         if (!confirm('Deseja realmente excluir este jogador?')) return;
 
         try {
-            const res = await fetch(`${API_BASE}/players/${id}`, {
+            const res = await this.fetchWithRetry(`${API_BASE}/players/${id}`, {
                 method: 'DELETE'
             });
 
@@ -316,7 +424,7 @@ class BeachTennisApp {
     // --- Métodos de API (Tournaments) ---
     async loadTournaments() {
         try {
-            const res = await fetch(`${API_BASE}/tournaments`);
+            const res = await this.fetchWithRetry(`${API_BASE}/tournaments`);
             this.tournaments = await res.json();
             this.renderTournamentsDashboard();
             this.populateTournamentDropdown('matches-tournament-select');
@@ -371,7 +479,7 @@ class BeachTennisApp {
         }
 
         try {
-            const res = await fetch(url, {
+            const res = await this.fetchWithRetry(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
@@ -402,7 +510,7 @@ class BeachTennisApp {
         if (!confirm('Deseja realmente excluir este torneio? Todos os jogos e tabelas serão perdidos permanentemente.')) return;
 
         try {
-            const res = await fetch(`${API_BASE}/tournaments/${id}`, {
+            const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${id}`, {
                 method: 'DELETE'
             });
 
@@ -430,7 +538,7 @@ class BeachTennisApp {
         }
 
         try {
-            const res = await fetch(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`);
+            const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`);
             const matches = await res.json();
             
             if (matches.length === 0) {
@@ -479,13 +587,13 @@ class BeachTennisApp {
 
         try {
             // Obter detalhes do torneio para saber o tipo
-            const tRes = await fetch(`${API_BASE}/tournaments/${tournamentId}`);
+            const tRes = await this.fetchWithRetry(`${API_BASE}/tournaments/${tournamentId}`);
             const tournament = await tRes.json();
             
             typeBadge.innerText = tournament.type === 'DUPLA_FIXA' ? 'Dupla Fixa' : 'Rei da Praia';
             typeBadge.className = tournament.type === 'DUPLA_FIXA' ? 'badge badge-secondary' : 'badge badge-primary';
 
-            const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/standings`);
+            const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${tournamentId}/standings`);
             const standings = await res.json();
 
             tbody.innerHTML = '';
@@ -940,7 +1048,7 @@ class BeachTennisApp {
         const score2 = parseInt(document.getElementById('modal-score2').value) || 0;
 
         try {
-            const res = await fetch(`${API_BASE}/tournaments/matches/${this.currentMatchEditing.id}`, {
+            const res = await this.fetchWithRetry(`${API_BASE}/tournaments/matches/${this.currentMatchEditing.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ score1, score2 })
