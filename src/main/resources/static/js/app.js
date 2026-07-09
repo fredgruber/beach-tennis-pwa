@@ -267,6 +267,24 @@ class BeachTennisApp {
         document.getElementById('btn-cancel-score').addEventListener('click', () => this.closeModal());
         document.getElementById('btn-save-score').addEventListener('click', () => this.saveMatchScore());
 
+        // Modal de adicionar jogo
+        const btnOpenAddMatch = document.getElementById('btn-open-add-match-modal');
+        if (btnOpenAddMatch) {
+            btnOpenAddMatch.addEventListener('click', () => this.openAddMatchModal());
+        }
+        const btnCloseAddMatch = document.getElementById('btn-close-add-match-modal');
+        if (btnCloseAddMatch) {
+            btnCloseAddMatch.addEventListener('click', () => this.closeAddMatchModal());
+        }
+        const btnCancelAddMatch = document.getElementById('btn-cancel-add-match');
+        if (btnCancelAddMatch) {
+            btnCancelAddMatch.addEventListener('click', () => this.closeAddMatchModal());
+        }
+        const addMatchForm = document.getElementById('add-match-form');
+        if (addMatchForm) {
+            addMatchForm.addEventListener('submit', (e) => this.saveNewMatch(e));
+        }
+
         // Botão de forçar atualização
         const forceUpdateBtn = document.getElementById('btn-force-update-app');
         if (forceUpdateBtn) {
@@ -674,6 +692,7 @@ class BeachTennisApp {
     async loadTournamentMatches() {
         const container = document.getElementById('matches-list-container');
         const filterContainer = document.getElementById('rounds-filter-container');
+        const addMatchBtn = document.getElementById('btn-open-add-match-modal');
         
         if (!this.activeTournamentId) {
             container.innerHTML = `
@@ -683,8 +702,11 @@ class BeachTennisApp {
                 </div>
             `;
             filterContainer.innerHTML = '';
+            if (addMatchBtn) addMatchBtn.style.display = 'none';
             return;
         }
+
+        if (addMatchBtn) addMatchBtn.style.display = 'inline-block';
 
         try {
             const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`);
@@ -1223,6 +1245,85 @@ class BeachTennisApp {
             }
         } catch (err) {
             console.error('Erro ao salvar placar:', err);
+        }
+    }
+
+    openAddMatchModal() {
+        if (!this.activeTournamentId) return;
+        const tournament = this.tournaments.find(t => t.id === this.activeTournamentId);
+        if (!tournament) return;
+
+        const players = [...tournament.players].sort((a, b) => a.name.localeCompare(b.name));
+
+        const selects = ['add-match-p1', 'add-match-p2', 'add-match-p3', 'add-match-p4'];
+        selects.forEach(selectId => {
+            const selectEl = document.getElementById(selectId);
+            if (selectEl) {
+                selectEl.innerHTML = '<option value="">Selecione...</option>';
+                players.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.innerText = p.name;
+                    selectEl.appendChild(opt);
+                });
+            }
+        });
+
+        document.getElementById('add-match-round').value = 1;
+        document.getElementById('add-match-court').value = tournament.type === 'REI_DA_PRAIA' ? 'Grupo 1' : 'Quadra 1';
+
+        document.getElementById('add-match-modal').classList.add('active');
+    }
+
+    closeAddMatchModal() {
+        document.getElementById('add-match-modal').classList.remove('active');
+        document.getElementById('add-match-form').reset();
+    }
+
+    async saveNewMatch(e) {
+        e.preventDefault();
+        if (!this.activeTournamentId) return;
+
+        const player1Id = parseInt(document.getElementById('add-match-p1').value);
+        const player2Id = parseInt(document.getElementById('add-match-p2').value);
+        const player3Id = parseInt(document.getElementById('add-match-p3').value);
+        const player4Id = parseInt(document.getElementById('add-match-p4').value);
+        const roundNumber = parseInt(document.getElementById('add-match-round').value) || 1;
+        const courtName = document.getElementById('add-match-court').value.trim();
+
+        const selectedIds = new Set([player1Id, player2Id, player3Id, player4Id]);
+        if (selectedIds.size < 4) {
+            alert('Por favor, selecione 4 jogadores diferentes. Não pode haver jogadores repetidos na mesma partida.');
+            return;
+        }
+
+        const body = {
+            player1Id,
+            player2Id,
+            player3Id,
+            player4Id,
+            roundNumber,
+            courtName
+        };
+
+        try {
+            const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            if (res.ok) {
+                this.closeAddMatchModal();
+                await Promise.all([
+                    this.loadTournamentMatches(),
+                    this.loadTournamentStandings(this.activeTournamentId)
+                ]);
+            } else {
+                alert('Erro ao adicionar partida.');
+            }
+        } catch (err) {
+            console.error('Erro ao adicionar partida:', err);
         }
     }
 }

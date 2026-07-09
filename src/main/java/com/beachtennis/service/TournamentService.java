@@ -7,6 +7,7 @@ import com.beachtennis.repository.PlayerRepository;
 import com.beachtennis.repository.TeamRepository;
 import com.beachtennis.repository.TournamentMatchRepository;
 import com.beachtennis.repository.TournamentRepository;
+import com.beachtennis.controller.TournamentController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,19 +66,153 @@ public class TournamentService {
     public Tournament createReiDaPraiaTournament(String name, List<Long> playerIds) {
         Tournament tournament = new Tournament(name, TournamentType.REI_DA_PRAIA, TournamentStatus.ACTIVE);
         List<Player> players = playerRepository.findAllById(playerIds);
-        // Shuffle to randomize groups
+        // Shuffle to randomize starting order
         Collections.shuffle(players);
         tournament.setPlayers(players);
         
         tournament = tournamentRepository.save(tournament);
 
-        // Partition players into groups of 4 and 5
-        List<List<Player>> groups = partitionPlayers(players);
-
-        // Generate rotation matches for each group
-        generateReiDaPraiaMatches(tournament, groups);
+        // Generate rotation matches for all players together (everyone with/against everyone)
+        generateReiDaPraiaMatchesSinglePool(tournament, players);
 
         return tournament;
+    }
+
+    private static class Pair {
+        Player p1;
+        Player p2;
+        Pair(Player p1, Player p2) {
+            this.p1 = p1;
+            this.p2 = p2;
+        }
+    }
+
+    private static boolean isDisjoint(Pair a, Pair b) {
+        return !a.p1.getId().equals(b.p1.getId()) &&
+               !a.p1.getId().equals(b.p2.getId()) &&
+               !a.p2.getId().equals(b.p1.getId()) &&
+               !a.p2.getId().equals(b.p2.getId());
+    }
+
+    private void generateReiDaPraiaMatchesSinglePool(Tournament tournament, List<Player> players) {
+        if (players.size() < 4) return;
+
+        List<Pair> remainingPairs = new ArrayList<>();
+        for (int i = 0; i < players.size(); i++) {
+            for (int j = i + 1; j < players.size(); j++) {
+                remainingPairs.add(new Pair(players.get(i), players.get(j)));
+            }
+        }
+
+        int roundNumber = 1;
+        int matchInRound = 1;
+        List<TournamentMatch> matches = new ArrayList<>();
+
+        while (!remainingPairs.isEmpty()) {
+            Pair p1 = remainingPairs.remove(0);
+            Pair p2 = null;
+
+            // Find the first pair in remainingPairs that is disjoint from p1
+            for (int i = 0; i < remainingPairs.size(); i++) {
+                Pair candidate = remainingPairs.get(i);
+                if (isDisjoint(p1, candidate)) {
+                    p2 = remainingPairs.remove(i);
+                    break;
+                }
+            }
+
+            if (p2 == null) {
+                // Look in the already generated matches to find a pair disjoint from p1
+                for (TournamentMatch existing : matches) {
+                    Pair candidate = new Pair(existing.getPlayer1(), existing.getPlayer2());
+                    if (isDisjoint(p1, candidate)) {
+                        p2 = candidate;
+                        break;
+                    }
+                    candidate = new Pair(existing.getPlayer3(), existing.getPlayer4());
+                    if (isDisjoint(p1, candidate)) {
+                        p2 = candidate;
+                        break;
+                    }
+                }
+            }
+
+            // If still null, pick any 2 players other than p1's players
+            if (p2 == null) {
+                List<Player> others = new ArrayList<>();
+                for (Player p : players) {
+                    if (!p.getId().equals(p1.p1.getId()) && !p.getId().equals(p1.p2.getId())) {
+                        others.add(p);
+                    }
+                    if (others.size() == 2) break;
+                }
+                if (others.size() == 2) {
+                    p2 = new Pair(others.get(0), others.get(1));
+                }
+            }
+
+            if (p2 != null) {
+                TournamentMatch match = new TournamentMatch();
+                match.setTournament(tournament);
+                match.setPlayer1(p1.p1);
+                match.setPlayer2(p1.p2);
+                match.setPlayer3(p2.p1);
+                match.setPlayer4(p2.p2);
+                match.setRoundNumber(roundNumber);
+                match.setCourtName("Quadra " + matchInRound);
+                matchRepository.save(match);
+                matches.add(match);
+
+                matchInRound++;
+                // Max 3 matches/courts per round
+                if (matchInRound > 3) {
+                    matchInRound = 1;
+                    roundNumber++;
+                }
+            }
+        }
+    }
+
+    @Transactional
+    public TournamentMatch addMatch(Long tournamentId, TournamentController.AddMatchRequest request) {
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new IllegalArgumentException("Tournament not found"));
+
+        Player p1 = playerRepository.findById(request.getPlayer1Id()).orElseThrow(() -> new IllegalArgumentException("Player 1 not found"));
+        Player p2 = playerRepository.findById(request.getPlayer2Id()).orElseThrow(() -> new IllegalArgumentException("Player 2 not found"));
+        Player p3 = playerRepository.findById(request.getPlayer3Id()).orElseThrow(() -> new IllegalArgumentException("Player 3 not found"));
+        Player p4 = playerRepository.findById(request.getPlayer4Id()).orElseThrow(() -> new IllegalArgumentException("Player 4 not found"));
+
+        TournamentMatch match = new TournamentMatch();
+        match.setTournament(tournament);
+        match.setPlayer1(p1);
+        match.setPlayer2(p2);
+        match.setPlayer3(p3);
+        match.setPlayer4(p4);
+        match.setRoundNumber(request.getRoundNumber() != null ? request.getRoundNumber() : 1);
+        match.setCourtName(request.getCourtName() != null ? request.getCourtName() : "Quadra 1");
+
+        // If it is DUPLA_FIXA, try to associate team1 and team2
+        if (tournament.getType() == TournamentType.DUPLA_FIXA) {
+            Team team1 = findOrCreateTeam(tournament, p1, p2);
+            Team team2 = findOrCreateTeam(tournament, p3, p4);
+            match.setTeam1(team1);
+            match.setTeam2(team2);
+        }
+
+        return matchRepository.save(match);
+    }
+
+    private Team findOrCreateTeam(Tournament tournament, Player p1, Player p2) {
+        List<Team> teams = teamRepository.findByTournament(tournament);
+        for (Team t : teams) {
+            if ((t.getPlayer1().getId().equals(p1.getId()) && t.getPlayer2().getId().equals(p2.getId())) ||
+                (t.getPlayer1().getId().equals(p2.getId()) && t.getPlayer2().getId().equals(p1.getId()))) {
+                return t;
+            }
+        }
+        Team team = new Team(p1, p2, tournament);
+        return teamRepository.save(team);
     }
 
     private List<List<Player>> partitionPlayers(List<Player> players) {

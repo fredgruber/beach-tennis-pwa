@@ -78,6 +78,18 @@ public class TournamentController {
         }
     }
 
+    @PostMapping("/{id}/matches")
+    public ResponseEntity<TournamentMatch> addMatch(
+            @PathVariable Long id,
+            @RequestBody AddMatchRequest request) {
+        try {
+            TournamentMatch newMatch = tournamentService.addMatch(id, request);
+            return new ResponseEntity<>(newMatch, HttpStatus.CREATED);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @GetMapping("/{id}/standings")
     public ResponseEntity<?> getTournamentStandings(@PathVariable Long id) {
         return tournamentRepository.findById(id)
@@ -101,6 +113,28 @@ public class TournamentController {
     }
 
     // Request DTOs
+    public static class AddMatchRequest {
+        private Long player1Id;
+        private Long player2Id;
+        private Long player3Id;
+        private Long player4Id;
+        private Integer roundNumber;
+        private String courtName;
+
+        public Long getPlayer1Id() { return player1Id; }
+        public void setPlayer1Id(Long player1Id) { this.player1Id = player1Id; }
+        public Long getPlayer2Id() { return player2Id; }
+        public void setPlayer2Id(Long player2Id) { this.player2Id = player2Id; }
+        public Long getPlayer3Id() { return player3Id; }
+        public void setPlayer3Id(Long player3Id) { this.player3Id = player3Id; }
+        public Long getPlayer4Id() { return player4Id; }
+        public void setPlayer4Id(Long player4Id) { this.player4Id = player4Id; }
+        public Integer getRoundNumber() { return roundNumber; }
+        public void setRoundNumber(Integer roundNumber) { this.roundNumber = roundNumber; }
+        public String getCourtName() { return courtName; }
+        public void setCourtName(String courtName) { this.courtName = courtName; }
+    }
+
     public static class DuplaFixaRequest {
         private String name;
         private List<List<Long>> teams;

@@ -285,11 +285,14 @@
             <section id="tab-matches" class="tab-content">
                 <div class="card mb-6">
                     <div class="card-header flex-row justify-between align-center">
-                        <div class="flex-row align-center gap-4">
+                        <div class="flex-row align-center gap-4 flex-wrap">
                             <h2><i class="fa-solid fa-calendar-days text-blue"></i> Tabela de Jogos</h2>
                             <select id="matches-tournament-select" class="form-control-inline">
                                 <option value="">Selecione um Torneio...</option>
                             </select>
+                            <button id="btn-open-add-match-modal" class="btn btn-primary btn-sm" style="display: none;">
+                                <i class="fa-solid fa-plus"></i> Adicionar Jogo
+                            </button>
                         </div>
                         <div class="filter-rounds" id="rounds-filter-container">
                             <!-- Round buttons will go here -->
@@ -394,6 +397,64 @@
                 <button class="btn btn-secondary" id="btn-cancel-score">Cancelar</button>
                 <button class="btn btn-primary" id="btn-save-score">Confirmar Placar</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Add Match Modal -->
+    <div class="modal" id="add-match-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Adicionar Novo Jogo</h3>
+                <button class="close-modal-btn" id="btn-close-add-match-modal">&times;</button>
+            </div>
+            <form id="add-match-form">
+                <div class="modal-body">
+                    <div style="display: flex; gap: 15px; margin-bottom: 12px;">
+                        <div style="flex: 1;">
+                            <label style="display: block; margin-bottom: 4px; font-weight: bold;">Dupla 1 - Jogador 1</label>
+                            <select id="add-match-p1" class="form-control" style="width: 100%;" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="display: block; margin-bottom: 4px; font-weight: bold;">Dupla 1 - Jogador 2</label>
+                            <select id="add-match-p2" class="form-control" style="width: 100%;" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="text-align: center; font-weight: bold; margin: 8px 0; color: #888;">VS</div>
+                    <div style="display: flex; gap: 15px; margin-bottom: 12px;">
+                        <div style="flex: 1;">
+                            <label style="display: block; margin-bottom: 4px; font-weight: bold;">Dupla 2 - Jogador 1</label>
+                            <select id="add-match-p3" class="form-control" style="width: 100%;" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="display: block; margin-bottom: 4px; font-weight: bold;">Dupla 2 - Jogador 2</label>
+                            <select id="add-match-p4" class="form-control" style="width: 100%;" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <hr style="margin: 15px 0; border: 0; border-top: 1px solid #eee;">
+                    <div style="display: flex; gap: 15px; margin-bottom: 12px;">
+                        <div style="flex: 1;">
+                            <label for="add-match-round" style="display: block; margin-bottom: 4px; font-weight: bold;">Rodada</label>
+                            <input type="number" id="add-match-round" class="form-control" style="width: 100%;" min="1" value="1" required>
+                        </div>
+                        <div style="flex: 1;">
+                            <label for="add-match-court" style="display: block; margin-bottom: 4px; font-weight: bold;">Quadra / Grupo</label>
+                            <input type="text" id="add-match-court" class="form-control" style="width: 100%;" value="Quadra 1" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-add-match">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Adicionar Jogo</button>
+                </div>
+            </form>
         </div>
     </div>
 
