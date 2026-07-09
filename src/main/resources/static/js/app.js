@@ -124,10 +124,19 @@ class BeachTennisApp {
     }
 
     async fetchWithRetry(url, options = {}, retries = 3, delay = 2000) {
-        // Se demorar mais de 1.8 segundos, exibe mensagem que está acordando o servidor Render
+        const titleEl = document.getElementById('wakeup-title');
+        const textEl = document.getElementById('wakeup-text');
+        const wakeupAlert = document.getElementById('wakeup-alert');
+
+        // Exibe imediatamente como carregamento do sistema
+        if (titleEl) titleEl.innerText = "Carregando...";
+        if (textEl) textEl.style.display = "none";
+        if (wakeupAlert) wakeupAlert.style.display = "flex";
+
+        // Se demorar mais de 1.8 segundos, muda a mensagem indicando inicialização do servidor
         let wakeupTimer = setTimeout(() => {
-            const wakeupAlert = document.getElementById('wakeup-alert');
-            if (wakeupAlert) wakeupAlert.style.display = 'flex';
+            if (titleEl) titleEl.innerText = "Servidor carregando...";
+            if (textEl) textEl.style.display = "block";
         }, 1800);
 
         try {
@@ -147,9 +156,6 @@ class BeachTennisApp {
                         continue;
                     }
 
-                    clearTimeout(wakeupTimer);
-                    const wakeupAlert = document.getElementById('wakeup-alert');
-                    if (wakeupAlert) wakeupAlert.style.display = 'none';
                     return response;
                 } catch (err) {
                     if (i === retries - 1) throw err;
@@ -157,11 +163,9 @@ class BeachTennisApp {
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
             }
-        } catch (err) {
+        } finally {
             clearTimeout(wakeupTimer);
-            const wakeupAlert = document.getElementById('wakeup-alert');
             if (wakeupAlert) wakeupAlert.style.display = 'none';
-            throw err;
         }
     }
 
