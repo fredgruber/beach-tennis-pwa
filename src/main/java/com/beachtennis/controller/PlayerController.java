@@ -34,6 +34,19 @@ public class PlayerController {
         return new ResponseEntity<>(savedPlayers, HttpStatus.CREATED);
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Player> updatePlayer(@PathVariable Long id, @RequestBody Player playerDetails) {
+        return playerRepository.findById(id)
+            .map(player -> {
+                player.setName(playerDetails.getName());
+                player.setGender(playerDetails.getGender());
+                player.setCategory(playerDetails.getCategory());
+                Player updatedPlayer = playerRepository.save(player);
+                return new ResponseEntity<>(updatedPlayer, HttpStatus.OK);
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePlayer(@PathVariable Long id) {
         if (playerRepository.existsById(id)) {

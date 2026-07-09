@@ -134,7 +134,7 @@
                     <!-- Right Side: Add/Import Player -->
                     <div class="flex-1 space-y-4">
                         <div class="card">
-                            <div class="card-header">
+                            <div class="card-header" id="player-card-header">
                                 <h2><i class="fa-solid fa-user-plus text-orange"></i> Novo Jogador</h2>
                             </div>
                             <form id="add-player-form" class="form-grid">
@@ -160,9 +160,14 @@
                                         </select>
                                     </div>
                                 </div>
-                                <button type="submit" class="btn btn-primary btn-block">
-                                    <i class="fa-solid fa-save"></i> Salvar Jogador
-                                </button>
+                                <div class="space-y-2">
+                                    <button type="submit" class="btn btn-primary btn-block" id="btn-save-player">
+                                        <i class="fa-solid fa-save"></i> Salvar Jogador
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-cancel-edit-player" style="display: none;">
+                                        Cancelar Edição
+                                    </button>
+                                </div>
                             </form>
                         </div>
 

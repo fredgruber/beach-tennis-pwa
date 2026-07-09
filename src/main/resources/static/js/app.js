@@ -18,6 +18,9 @@ class BeachTennisApp {
 
         // Elementos de Instalação PWA
         this.deferredPrompt = null;
+
+        // Estado de edição de jogador
+        this.currentPlayerEditingId = null;
     }
 
     init() {
@@ -183,6 +186,12 @@ class BeachTennisApp {
             e.preventDefault();
             this.handleCreatePlayer();
         });
+
+        // Botão de cancelar edição do jogador
+        const cancelEditBtn = document.getElementById('btn-cancel-edit-player');
+        if (cancelEditBtn) {
+            cancelEditBtn.addEventListener('click', () => this.cancelPlayerEdit());
+        }
 
         // Botão de importação
         document.getElementById('btn-import-players').addEventListener('click', () => {
@@ -354,19 +363,32 @@ class BeachTennisApp {
             category: categoryInput.value
         };
 
+        const isEditing = this.currentPlayerEditingId !== null;
+        const url = isEditing ? `${API_BASE}/players/${this.currentPlayerEditingId}` : `${API_BASE}/players`;
+        const method = isEditing ? 'PUT' : 'POST';
+
         try {
-            const res = await this.fetchWithRetry(`${API_BASE}/players`, {
-                method: 'POST',
+            const res = await this.fetchWithRetry(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(player)
             });
 
             if (res.ok) {
-                nameInput.value = '';
+                if (isEditing) {
+                    this.cancelPlayerEdit();
+                } else {
+                    nameInput.value = '';
+                }
                 await this.loadPlayers();
+                this.renderTournamentPlayerSelection();
+                this.updateSelectedPlayersCount();
+                this.updateTeamBuilderWorkspace();
+            } else {
+                alert(isEditing ? 'Erro ao atualizar jogador.' : 'Erro ao criar jogador.');
             }
         } catch (err) {
-            console.error('Erro ao criar jogador:', err);
+            console.error('Erro ao salvar jogador:', err);
         }
     }
 
@@ -494,6 +516,57 @@ class BeachTennisApp {
             }
         } catch (err) {
             console.error('Erro ao excluir jogador:', err);
+        }
+    }
+
+    editPlayer(id) {
+        const player = this.players.find(p => p.id === id);
+        if (!player) return;
+
+        this.currentPlayerEditingId = id;
+        
+        document.getElementById('player-name').value = player.name;
+        document.getElementById('player-gender').value = player.gender;
+        document.getElementById('player-category').value = player.category;
+
+        const cardHeader = document.getElementById('player-card-header');
+        if (cardHeader) {
+            cardHeader.innerHTML = '<h2><i class="fa-solid fa-user-pen text-orange"></i> Editar Jogador</h2>';
+        }
+
+        const saveBtn = document.getElementById('btn-save-player');
+        if (saveBtn) {
+            saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Atualizar Jogador';
+        }
+
+        const cancelBtn = document.getElementById('btn-cancel-edit-player');
+        if (cancelBtn) {
+            cancelBtn.style.display = 'block';
+        }
+
+        document.getElementById('player-name').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    cancelPlayerEdit() {
+        this.currentPlayerEditingId = null;
+
+        document.getElementById('player-name').value = '';
+        document.getElementById('player-gender').value = 'M';
+        document.getElementById('player-category').value = 'C';
+
+        const cardHeader = document.getElementById('player-card-header');
+        if (cardHeader) {
+            cardHeader.innerHTML = '<h2><i class="fa-solid fa-user-plus text-orange"></i> Novo Jogador</h2>';
+        }
+
+        const saveBtn = document.getElementById('btn-save-player');
+        if (saveBtn) {
+            saveBtn.innerHTML = '<i class="fa-solid fa-save"></i> Salvar Jogador';
+        }
+
+        const cancelBtn = document.getElementById('btn-cancel-edit-player');
+        if (cancelBtn) {
+            cancelBtn.style.display = 'none';
         }
     }
 
@@ -743,6 +816,9 @@ class BeachTennisApp {
                 <td>${genderBadge}</td>
                 <td>${catBadge}</td>
                 <td class="text-right">
+                    <button class="btn btn-secondary btn-xs" onclick="app.editPlayer(${player.id})" style="margin-right: 4px;">
+                        <i class="fa-solid fa-pencil text-primary"></i>
+                    </button>
                     <button class="btn btn-secondary btn-xs" onclick="app.deletePlayer(${player.id})">
                         <i class="fa-solid fa-trash text-danger"></i>
                     </button>
