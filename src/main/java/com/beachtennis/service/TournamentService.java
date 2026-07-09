@@ -427,6 +427,50 @@ public class TournamentService {
                 .orElseThrow(() -> new IllegalArgumentException("Tournament not found"));
 
         List<TournamentMatch> existingMatches = matchRepository.findByTournament(tournament);
+        List<TournamentMatch> matchesToKeep = new ArrayList<>();
+        List<TournamentMatch> matchesToDelete = new ArrayList<>();
+
+        if (tournament.getType() == TournamentType.DUPLA_FIXA) {
+            Set<String> seenTeamPairs = new HashSet<>();
+            for (TournamentMatch match : existingMatches) {
+                if (match.getTeam1() != null && match.getTeam2() != null) {
+                    String key = getPairKey(match.getTeam1().getId(), match.getTeam2().getId());
+                    if (seenTeamPairs.contains(key)) {
+                        matchesToDelete.add(match);
+                    } else {
+                        seenTeamPairs.add(key);
+                        matchesToKeep.add(match);
+                    }
+                } else {
+                    matchesToKeep.add(match);
+                }
+            }
+        } else {
+            Set<String> seenPartnerPairs = new HashSet<>();
+            for (TournamentMatch match : existingMatches) {
+                if (match.getPlayer1() != null && match.getPlayer2() != null &&
+                    match.getPlayer3() != null && match.getPlayer4() != null) {
+                    String key1 = getPairKey(match.getPlayer1().getId(), match.getPlayer2().getId());
+                    String key2 = getPairKey(match.getPlayer3().getId(), match.getPlayer4().getId());
+                    if (seenPartnerPairs.contains(key1) || seenPartnerPairs.contains(key2)) {
+                        matchesToDelete.add(match);
+                    } else {
+                        seenPartnerPairs.add(key1);
+                        seenPartnerPairs.add(key2);
+                        matchesToKeep.add(match);
+                    }
+                } else {
+                    matchesToKeep.add(match);
+                }
+            }
+        }
+
+        // Excluir partidas duplicadas se houver
+        if (!matchesToDelete.isEmpty()) {
+            matchRepository.deleteAll(matchesToDelete);
+            existingMatches = matchesToKeep;
+        }
+
         List<TournamentMatch> newMatches = new ArrayList<>();
 
         if (tournament.getType() == TournamentType.DUPLA_FIXA) {
