@@ -414,4 +414,173 @@ public class TournamentService {
         Collections.sort(standings);
         return standings;
     }
+
+    @Transactional
+    public List<TournamentMatch> generateMissingMatches(Long tournamentId) {
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new IllegalArgumentException("Tournament not found"));
+
+        List<TournamentMatch> existingMatches = matchRepository.findByTournament(tournament);
+        List<TournamentMatch> newMatches = new ArrayList<>();
+
+        if (tournament.getType() == TournamentType.DUPLA_FIXA) {
+            List<Team> teams = teamRepository.findByTournament(tournament);
+            Set<String> playedTeamPairs = new HashSet<>();
+            for (TournamentMatch match : existingMatches) {
+                if (match.getTeam1() != null && match.getTeam2() != null) {
+                    playedTeamPairs.add(getPairKey(match.getTeam1().getId(), match.getTeam2().getId()));
+                }
+            }
+
+            int nextRound = existingMatches.stream()
+                    .mapToInt(m -> m.getRoundNumber() != null ? m.getRoundNumber() : 1)
+                    .max()
+                    .orElse(0) + 1;
+
+            int matchInRound = 1;
+            for (int i = 0; i < teams.size(); i++) {
+                for (int j = i + 1; j < teams.size(); j++) {
+                    Team t1 = teams.get(i);
+                    Team t2 = teams.get(j);
+                    String key = getPairKey(t1.getId(), t2.getId());
+                    if (!playedTeamPairs.contains(key)) {
+                        TournamentMatch match = new TournamentMatch();
+                        match.setTournament(tournament);
+                        match.setTeam1(t1);
+                        match.setTeam2(t2);
+                        match.setPlayer1(t1.getPlayer1());
+                        match.setPlayer2(t1.getPlayer2());
+                        match.setPlayer3(t2.getPlayer1());
+                        match.setPlayer4(t2.getPlayer2());
+                        match.setRoundNumber(nextRound);
+                        match.setCourtName("Quadra " + matchInRound);
+                        
+                        newMatches.add(matchRepository.save(match));
+                        playedTeamPairs.add(key);
+
+                        matchInRound++;
+                        if (matchInRound > 3) {
+                            matchInRound = 1;
+                            nextRound++;
+                        }
+                    }
+                }
+            }
+        } else {
+            List<Player> players = tournament.getPlayers();
+            Set<String> playedPlayerPairs = new HashSet<>();
+            for (TournamentMatch match : existingMatches) {
+                if (match.getPlayer1() != null && match.getPlayer2() != null &&
+                    match.getPlayer3() != null && match.getPlayer4() != null) {
+                    List<Long> teamASide = List.of(match.getPlayer1().getId(), match.getPlayer2().getId());
+                    List<Long> teamBSide = List.of(match.getPlayer3().getId(), match.getPlayer4().getId());
+                    for (Long pA : teamASide) {
+                        for (Long pB : teamBSide) {
+                            playedPlayerPairs.add(getPairKey(pA, pB));
+                        }
+                    }
+                }
+            }
+
+            List<PlayerPair> missingPairs = new ArrayList<>();
+            for (int i = 0; i < players.size(); i++) {
+                for (int j = i + 1; j < players.size(); j++) {
+                    Player p1 = players.get(i);
+                    Player p2 = players.get(j);
+                    String key = getPairKey(p1.getId(), p2.getId());
+                    if (!playedPlayerPairs.contains(key)) {
+                        missingPairs.add(new PlayerPair(p1, p2));
+                    }
+                }
+            }
+
+            int nextRound = existingMatches.stream()
+                    .mapToInt(m -> m.getRoundNumber() != null ? m.getRoundNumber() : 1)
+                    .max()
+                    .orElse(0) + 1;
+            int matchInRound = 1;
+
+            while (!missingPairs.isEmpty()) {
+                PlayerPair firstPair = missingPairs.remove(0);
+                Player a = firstPair.p1;
+                Player c = firstPair.p2;
+
+                PlayerPair secondPair = null;
+                for (int i = 0; i < missingPairs.size(); i++) {
+                    PlayerPair candidate = missingPairs.get(i);
+                    if (!candidate.p1.getId().equals(a.getId()) &&
+                        !candidate.p1.getId().equals(c.getId()) &&
+                        !candidate.p2.getId().equals(a.getId()) &&
+                        !candidate.p2.getId().equals(c.getId())) {
+                        secondPair = missingPairs.remove(i);
+                        break;
+                    }
+                }
+
+                Player b = null;
+                Player d = null;
+                if (secondPair != null) {
+                    b = secondPair.p1;
+                    d = secondPair.p2;
+                } else {
+                    List<Player> others = new ArrayList<>();
+                    for (Player p : players) {
+                        if (!p.getId().equals(a.getId()) && !p.getId().equals(c.getId())) {
+                            others.add(p);
+                        }
+                        if (others.size() == 2) break;
+                    }
+                    if (others.size() == 2) {
+                        b = others.get(0);
+                        d = others.get(1);
+                    }
+                }
+
+                if (b != null && d != null) {
+                    TournamentMatch match = new TournamentMatch();
+                    match.setTournament(tournament);
+                    match.setPlayer1(a);
+                    match.setPlayer2(b);
+                    match.setPlayer3(c);
+                    match.setPlayer4(d);
+                    match.setRoundNumber(nextRound);
+                    match.setCourtName("Quadra " + matchInRound);
+                    
+                    newMatches.add(matchRepository.save(match));
+                    removeCoveredPairs(missingPairs, a, b, c, d);
+
+                    matchInRound++;
+                    if (matchInRound > 3) {
+                        matchInRound = 1;
+                        nextRound++;
+                    }
+                }
+            }
+        }
+
+        return newMatches;
+    }
+
+    private String getPairKey(long id1, long id2) {
+        return id1 < id2 ? id1 + "-" + id2 : id2 + "-" + id1;
+    }
+
+    private static class PlayerPair {
+        Player p1;
+        Player p2;
+        PlayerPair(Player p1, Player p2) {
+            this.p1 = p1;
+            this.p2 = p2;
+        }
+    }
+
+    private void removeCoveredPairs(List<PlayerPair> missingPairs, Player a, Player b, Player c, Player d) {
+        Set<String> covered = new HashSet<>();
+        covered.add(getPairKey(a.getId(), c.getId()));
+        covered.add(getPairKey(a.getId(), d.getId()));
+        covered.add(getPairKey(b.getId(), c.getId()));
+        covered.add(getPairKey(b.getId(), d.getId()));
+
+        missingPairs.removeIf(pair -> covered.contains(getPairKey(pair.p1.getId(), pair.p2.getId())));
+    }
 }

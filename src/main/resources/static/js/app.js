@@ -272,6 +272,10 @@ class BeachTennisApp {
         if (btnOpenAddMatch) {
             btnOpenAddMatch.addEventListener('click', () => this.openAddMatchModal());
         }
+        const btnGenerateMissing = document.getElementById('btn-generate-missing-matches');
+        if (btnGenerateMissing) {
+            btnGenerateMissing.addEventListener('click', () => this.handleGenerateMissingMatches());
+        }
         const btnCloseAddMatch = document.getElementById('btn-close-add-match-modal');
         if (btnCloseAddMatch) {
             btnCloseAddMatch.addEventListener('click', () => this.closeAddMatchModal());
@@ -693,6 +697,7 @@ class BeachTennisApp {
         const container = document.getElementById('matches-list-container');
         const filterContainer = document.getElementById('rounds-filter-container');
         const addMatchBtn = document.getElementById('btn-open-add-match-modal');
+        const generateMissingBtn = document.getElementById('btn-generate-missing-matches');
         
         if (!this.activeTournamentId) {
             container.innerHTML = `
@@ -703,10 +708,12 @@ class BeachTennisApp {
             `;
             filterContainer.innerHTML = '';
             if (addMatchBtn) addMatchBtn.style.display = 'none';
+            if (generateMissingBtn) generateMissingBtn.style.display = 'none';
             return;
         }
 
         if (addMatchBtn) addMatchBtn.style.display = 'inline-block';
+        if (generateMissingBtn) generateMissingBtn.style.display = 'inline-block';
 
         try {
             const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`);
@@ -1324,6 +1331,37 @@ class BeachTennisApp {
             }
         } catch (err) {
             console.error('Erro ao adicionar partida:', err);
+        }
+    }
+
+    async handleGenerateMissingMatches() {
+        if (!this.activeTournamentId) return;
+        
+        if (!confirm('Deseja gerar automaticamente todas as partidas que faltam para que todos os jogadores se enfrentem?')) {
+            return;
+        }
+
+        try {
+            const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches/generate-missing`, {
+                method: 'POST'
+            });
+
+            if (res.ok) {
+                const newMatches = await res.json();
+                if (newMatches.length === 0) {
+                    alert('Todas as combinações possíveis de confrontos já foram geradas para este torneio!');
+                } else {
+                    alert(`${newMatches.length} novas partidas foram geradas com sucesso!`);
+                    await Promise.all([
+                        this.loadTournamentMatches(),
+                        this.loadTournamentStandings(this.activeTournamentId)
+                    ]);
+                }
+            } else {
+                alert('Erro ao gerar partidas faltantes.');
+            }
+        } catch (err) {
+            console.error('Erro ao gerar partidas faltantes:', err);
         }
     }
 }

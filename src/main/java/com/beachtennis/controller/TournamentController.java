@@ -90,6 +90,16 @@ public class TournamentController {
         }
     }
 
+    @PostMapping("/{id}/matches/generate-missing")
+    public ResponseEntity<List<TournamentMatch>> generateMissingMatches(@PathVariable Long id) {
+        try {
+            List<TournamentMatch> created = tournamentService.generateMissingMatches(id);
+            return ResponseEntity.ok(created);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @GetMapping("/{id}/standings")
     public ResponseEntity<?> getTournamentStandings(@PathVariable Long id) {
         return tournamentRepository.findById(id)
