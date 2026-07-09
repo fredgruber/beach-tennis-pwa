@@ -128,6 +128,13 @@ class BeachTennisApp {
         const textEl = document.getElementById('wakeup-text');
         const wakeupAlert = document.getElementById('wakeup-alert');
 
+        // Adiciona cache buster para requisições GET para evitar cache agressivo (Safari/iOS)
+        const method = (options.method || 'GET').toUpperCase();
+        if (method === 'GET') {
+            const separator = url.includes('?') ? '&' : '?';
+            url = `${url}${separator}t=${Date.now()}`;
+        }
+
         // Exibe imediatamente como carregamento do sistema
         if (titleEl) titleEl.innerText = "Carregando...";
         if (textEl) textEl.style.display = "none";
@@ -477,7 +484,11 @@ class BeachTennisApp {
             });
 
             if (res.ok) {
+                this.selectedPlayerIds.delete(id);
                 await this.loadPlayers();
+                this.renderTournamentPlayerSelection();
+                this.updateSelectedPlayersCount();
+                this.updateTeamBuilderWorkspace();
             } else {
                 alert('Não foi possível excluir o jogador. Pode ser que ele esteja em um torneio ativo.');
             }
