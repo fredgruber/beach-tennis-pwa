@@ -365,12 +365,25 @@ class BeachTennisApp {
 
         const lines = text.split('\n');
         const importedList = [];
+        const selectedIds = new Set();
+        
+        const existingNamesMap = new Map(this.players.map(p => [p.name.trim().toLowerCase(), p]));
+        const seenInList = new Set();
 
         for (let line of lines) {
             if (!line.trim()) continue;
             // Formato: Nome, Gênero (M/F), Categoria (A/B/C/D)
             const parts = line.split(',');
-            const name = parts[0] ? parts[0].trim() : '';
+            
+            // Retirar números e pontuações do nome
+            let rawName = parts[0] ? parts[0] : '';
+            const cleanName = rawName
+                .replace(/[^a-zA-ZáâãàéêíóôõúüçÁÂÃÀÉÊÍÓÔÕÚÜÇ\s]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+                
+            if (!cleanName) continue;
+            
             let gender = parts[1] ? parts[1].trim().toUpperCase() : 'M';
             let category = parts[2] ? parts[2].trim().toUpperCase() : 'C';
 
@@ -379,12 +392,40 @@ class BeachTennisApp {
                 gender = gender.startsWith('F') ? 'F' : 'M';
             }
 
-            if (name) {
-                importedList.push({ name, gender, category });
+            const lowerName = cleanName.toLowerCase();
+            
+            // Se já foi visto nesta lista
+            if (seenInList.has(lowerName)) {
+                continue;
+            }
+            seenInList.add(lowerName);
+
+            if (existingNamesMap.has(lowerName)) {
+                // Já existe no banco: adicionamos o ID existente para seleção posterior
+                selectedIds.add(existingNamesMap.get(lowerName).id);
+            } else {
+                // Não existe: colocamos na lista para importação no banco
+                importedList.push({ name: cleanName, gender, category });
             }
         }
 
-        if (importedList.length === 0) return;
+        // Se todos os colados já existiam no banco de dados e nenhum novo precisa ser adicionado
+        if (importedList.length === 0) {
+            if (selectedIds.size > 0) {
+                // Limpar campos
+                document.getElementById('import-text').value = '';
+                
+                // Mudar seleção e ir para torneios
+                this.selectedPlayerIds = selectedIds;
+                this.renderTournamentPlayerSelection();
+                this.updateSelectedPlayersCount();
+                this.updateTeamBuilderWorkspace();
+                this.switchTab('new-tournament');
+            } else {
+                alert('Nenhum jogador novo ou válido encontrado no texto.');
+            }
+            return;
+        }
 
         try {
             const res = await this.fetchWithRetry(`${API_BASE}/players/import`, {
@@ -394,9 +435,29 @@ class BeachTennisApp {
             });
 
             if (res.ok) {
+                const savedPlayers = await res.json();
                 document.getElementById('import-text').value = '';
+                
+                // Recarrega todos os jogadores na lista interna
                 await this.loadPlayers();
-                alert(`${importedList.length} jogadores importados com sucesso!`);
+
+                // Adiciona os IDs dos novos jogadores importados aos selecionados
+                savedPlayers.forEach(p => {
+                    selectedIds.add(p.id);
+                });
+
+                // Limpa e define a seleção do torneio
+                this.selectedPlayerIds = selectedIds;
+                
+                // Atualiza os componentes visuais do torneio
+                this.renderTournamentPlayerSelection();
+                this.updateSelectedPlayersCount();
+                this.updateTeamBuilderWorkspace();
+
+                // Muda de aba
+                this.switchTab('new-tournament');
+            } else {
+                alert('Erro ao importar jogadores.');
             }
         } catch (err) {
             console.error('Erro ao importar jogadores:', err);
