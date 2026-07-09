@@ -1402,7 +1402,7 @@ class BeachTennisApp {
         }
     }
 
-    openOcrModal() {
+    async openOcrModal() {
         if (!this.activeTournamentId) return;
         
         document.getElementById('ocr-file-input').value = '';
@@ -1411,12 +1411,37 @@ class BeachTennisApp {
         document.getElementById('ocr-results-container').style.display = 'none';
         document.getElementById('btn-save-ocr-results').style.display = 'none';
         
-        document.getElementById('ocr-modal').classList.add('active');
+        try {
+            const [playersRes, matchesRes] = await Promise.all([
+                this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/players`),
+                this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`)
+            ]);
+            
+            if (playersRes.ok && matchesRes.ok) {
+                const players = await playersRes.json();
+                const matches = await matchesRes.json();
+                
+                this.currentTournamentPlayers = players;
+                this.currentTournamentMatches = matches;
+                
+                this.buildResultsGrid(players, matches);
+                
+                document.getElementById('ocr-modal').classList.add('active');
+                document.getElementById('ocr-results-container').style.display = 'block';
+                document.getElementById('btn-save-ocr-results').style.display = 'inline-block';
+            } else {
+                alert('Erro ao carregar dados do torneio.');
+            }
+        } catch (err) {
+            console.error('Erro ao carregar dados para a tabela:', err);
+            alert('Erro ao carregar dados do torneio.');
+        }
     }
 
     closeOcrModal() {
         document.getElementById('ocr-modal').classList.remove('active');
-        this.currentOcrResults = null;
+        this.currentTournamentPlayers = null;
+        this.currentTournamentMatches = null;
     }
 
     handleOcrFile(file) {
@@ -1432,8 +1457,6 @@ class BeachTennisApp {
         
         document.getElementById('ocr-status').style.display = 'block';
         document.getElementById('ocr-status-text').innerText = 'Carregando biblioteca OCR...';
-        document.getElementById('ocr-results-container').style.display = 'none';
-        document.getElementById('btn-save-ocr-results').style.display = 'none';
         
         Tesseract.recognize(
             file,
@@ -1454,192 +1477,250 @@ class BeachTennisApp {
     async processOcrText(text) {
         document.getElementById('ocr-status').style.display = 'none';
         
-        const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`);
-        if (!res.ok) {
-            alert('Erro ao carregar as partidas do torneio para comparação.');
-            return;
-        }
-        const matches = await res.json();
-        
         const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        const results = [];
+        const maxGames = this.currentTournamentPlayers.length - 1;
+        const numPlayers = this.currentTournamentPlayers.length;
         
-        const normalize = (str) => {
-            if (!str) return '';
-            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, ' ');
-        };
-
-        const searchName = (lineNormalized, playerName) => {
-            if (!playerName) return false;
-            const normName = normalize(playerName);
-            const words = normName.split(/\s+/).filter(w => w.length > 2);
-            if (words.length === 0) return false;
-            return words.some(word => lineNormalized.includes(word));
-        };
-
-        for (const match of matches) {
-            const p1 = match.player1 ? match.player1.name : '';
-            const p2 = match.player2 ? match.player2.name : '';
-            const p3 = match.player3 ? match.player3.name : '';
-            const p4 = match.player4 ? match.player4.name : '';
-            
-            for (const line of lines) {
-                const lineNorm = normalize(line);
-                let count = 0;
-                
-                if (p1 && searchName(lineNorm, p1)) count++;
-                if (p2 && searchName(lineNorm, p2)) count++;
-                if (p3 && searchName(lineNorm, p3)) count++;
-                if (p4 && searchName(lineNorm, p4)) count++;
-                
-                if (count >= 2) {
-                    const scoreRegex = /(\d+)\s*[xX\/\-]\s*(\d+)/;
-                    const matchScore = line.match(scoreRegex);
-                    let score1 = null;
-                    let score2 = null;
-                    
-                    if (matchScore) {
-                        score1 = parseInt(matchScore[1]);
-                        score2 = parseInt(matchScore[2]);
-                    } else {
-                        const numbers = line.match(/\b\d+\b/g);
-                        if (numbers && numbers.length >= 2) {
-                            score1 = parseInt(numbers[0]);
-                            score2 = parseInt(numbers[1]);
+        let processedLines = 0;
+        for (const line of lines) {
+            const nums = line.match(/\d+/g);
+            if (nums && nums.length >= 4) {
+                const rowNum = parseInt(nums[0]);
+                if (rowNum >= 1 && rowNum <= maxGames) {
+                    const scores = nums.slice(1);
+                    scores.forEach((scoreVal, colIndex) => {
+                        if (colIndex < numPlayers) {
+                            const cell = document.querySelector(`.grid-cell[data-col="${colIndex}"][data-row="${rowNum}"]`);
+                            if (cell) {
+                                cell.value = scoreVal;
+                            }
                         }
-                    }
-                    
-                    if (score1 !== null && score2 !== null) {
-                        let t1Index = Infinity;
-                        let t2Index = Infinity;
-                        
-                        const lowerLine = line.toLowerCase();
-                        if (p1 && lowerLine.includes(p1.toLowerCase())) t1Index = Math.min(t1Index, lowerLine.indexOf(p1.toLowerCase()));
-                        if (p2 && lowerLine.includes(p2.toLowerCase())) t1Index = Math.min(t1Index, lowerLine.indexOf(p2.toLowerCase()));
-                        if (p3 && lowerLine.includes(p3.toLowerCase())) t2Index = Math.min(t2Index, lowerLine.indexOf(p3.toLowerCase()));
-                        if (p4 && lowerLine.includes(p4.toLowerCase())) t2Index = Math.min(t2Index, lowerLine.indexOf(p4.toLowerCase()));
-                        
-                        let finalScore1 = score1;
-                        let finalScore2 = score2;
-                        
-                        if (t2Index < t1Index) {
-                            finalScore1 = score2;
-                            finalScore2 = score1;
-                        }
-                        
-                        results.push({
-                            match,
-                            score1: finalScore1,
-                            score2: finalScore2,
-                            lineText: line
-                        });
-                        break;
-                    }
+                    });
+                    processedLines++;
                 }
             }
         }
         
-        this.renderOcrResults(results);
+        if (processedLines > 0) {
+            alert(`OCR finalizado com sucesso! ${processedLines} linhas da tabela foram detectadas e preenchidas na grade.`);
+        } else {
+            alert('Não conseguimos reconhecer linhas válidas da tabela (ex: "1 4 2 2..."). Por favor, verifique a imagem ou preencha a grade manualmente.');
+        }
     }
 
-    renderOcrResults(results) {
-        const listContainer = document.getElementById('ocr-matches-list');
-        const saveBtn = document.getElementById('btn-save-ocr-results');
-        const resultsContainer = document.getElementById('ocr-results-container');
+    buildResultsGrid(players, matches) {
+        const headerRow = document.getElementById('ocr-grid-header');
+        headerRow.innerHTML = '<th style="padding: 8px; border-bottom: 2px solid #ddd; background: #f9f9f9; width: 60px; text-align: center;">Jogo</th>';
         
-        listContainer.innerHTML = '';
+        players.forEach((player, colIdx) => {
+            const th = document.createElement('th');
+            th.style.padding = '8px';
+            th.style.borderBottom = '2px solid #ddd';
+            th.style.background = '#f9f9f9';
+            
+            let selectHtml = `<select class="form-control ocr-player-select" data-col="${colIdx}" style="padding: 4px; font-size: 0.8rem; width: 100%; min-width: 90px; text-align: center; font-weight: bold; border: 1px solid #ccc; border-radius: 4px;">`;
+            players.forEach(p => {
+                const selected = p.id === player.id ? 'selected' : '';
+                selectHtml += `<option value="${p.id}" ${selected}>${p.name}</option>`;
+            });
+            selectHtml += '</select>';
+            
+            th.innerHTML = selectHtml;
+            headerRow.appendChild(th);
+        });
+
+        const tbody = document.getElementById('ocr-grid-body');
+        tbody.innerHTML = '';
         
-        if (results.length === 0) {
-            listContainer.innerHTML = `
-                <div class="no-data-card" style="padding: 20px;">
-                    <i class="fa-solid fa-circle-question" style="font-size: 30px; margin-bottom: 10px;"></i>
-                    <p>Não conseguimos identificar os placares na imagem automaticamente.</p>
-                    <span style="font-size: 0.8rem; color: #666;">Verifique se a imagem possui boa resolução, se os nomes dos jogadores estão corretos e se os placares estão legíveis (ex: "Fred e Leo 6 x 4").</span>
-                </div>
-            `;
-            saveBtn.style.display = 'none';
-        } else {
-            results.forEach((item, index) => {
-                const match = item.match;
-                const p1 = match.player1 ? match.player1.name : '';
-                const p2 = match.player2 ? match.player2.name : '';
-                const p3 = match.player3 ? match.player3.name : '';
-                const p4 = match.player4 ? match.player4.name : '';
-                
-                const team1Text = p2 ? `${p1} / ${p2}` : p1;
-                const team2Text = p4 ? `${p3} / ${p4}` : p3;
-                
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'ocr-match-item';
-                itemDiv.style.borderBottom = '1px solid #eee';
-                itemDiv.style.padding = '12px 0';
-                itemDiv.style.display = 'flex';
-                itemDiv.style.flexDirection = 'column';
-                itemDiv.style.gap = '6px';
-                
-                itemDiv.innerHTML = `
-                    <div style="font-size: 0.8rem; font-weight: bold; color: #555;">
-                        Rodada ${match.roundNumber || 1} - ${match.courtName || 'Geral'}
-                    </div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                        <span style="flex: 1; text-align: right; font-weight: 500; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${team1Text}">${team1Text}</span>
-                        <div style="display: flex; align-items: center; gap: 5px;">
-                            <input type="number" class="form-control ocr-score-input" data-index="${index}" data-team="1" value="${item.score1}" style="width: 45px; text-align: center; padding: 4px;">
-                            <span>x</span>
-                            <input type="number" class="form-control ocr-score-input" data-index="${index}" data-team="2" value="${item.score2}" style="width: 45px; text-align: center; padding: 4px;">
-                        </div>
-                        <span style="flex: 1; text-align: left; font-weight: 500; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${team2Text}">${team2Text}</span>
-                        <button type="button" class="btn btn-secondary btn-sm btn-swap-ocr" data-index="${index}" style="padding: 4px 8px;">
-                            <i class="fa-solid fa-right-left"></i>
-                        </button>
-                    </div>
-                    <div style="font-size: 0.75rem; color: #888; font-style: italic;">
-                        Texto lido: "${item.lineText}"
-                    </div>
-                `;
-                listContainer.appendChild(itemDiv);
-            });
+        const maxGames = players.length - 1;
+        for (let r = 1; r <= maxGames; r++) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; background: #fafafa; text-align: center;">${r}</td>`;
             
-            const swapButtons = listContainer.querySelectorAll('.btn-swap-ocr');
-            swapButtons.forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const idx = e.currentTarget.getAttribute('data-index');
-                    const input1 = listContainer.querySelector(`.ocr-score-input[data-index="${idx}"][data-team="1"]`);
-                    const input2 = listContainer.querySelector(`.ocr-score-input[data-index="${idx}"][data-team="2"]`);
-                    const val1 = input1.value;
-                    input1.value = input2.value;
-                    input2.value = val1;
-                });
-            });
-            
-            saveBtn.style.display = 'inline-block';
+            for (let c = 0; c < players.length; c++) {
+                const td = document.createElement('td');
+                td.style.padding = '6px';
+                td.style.borderBottom = '1px solid #eee';
+                td.style.textAlign = 'center';
+                
+                td.innerHTML = `<input type="number" class="form-control grid-cell" data-col="${c}" data-row="${r}" min="0" max="10" style="width: 50px; text-align: center; margin: 0 auto; padding: 4px; border: 1px solid #ccc; border-radius: 4px;">`;
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
         }
+
+        const selects = headerRow.querySelectorAll('.ocr-player-select');
+        selects.forEach(select => {
+            select.addEventListener('change', () => this.refreshGridValues());
+        });
+
+        tbody.addEventListener('input', (e) => {
+            if (e.target.classList.contains('grid-cell')) {
+                const col = parseInt(e.target.getAttribute('data-col'));
+                const row = parseInt(e.target.getAttribute('data-row'));
+                const val = e.target.value;
+                
+                const select = document.querySelector(`.ocr-player-select[data-col="${col}"]`);
+                if (!select) return;
+                const playerId = parseInt(select.value);
+                
+                const playerMatches = this.currentTournamentMatches.filter(m => 
+                    (m.player1 && m.player1.id === playerId) ||
+                    (m.player2 && m.player2.id === playerId) ||
+                    (m.player3 && m.player3.id === playerId) ||
+                    (m.player4 && m.player4.id === playerId)
+                );
+                playerMatches.sort((a, b) => {
+                    if (a.roundNumber !== b.roundNumber) {
+                        return (a.roundNumber || 1) - (b.roundNumber || 1);
+                    }
+                    const courtA = a.courtName || '';
+                    const courtB = b.courtName || '';
+                    if (courtA !== courtB) {
+                        return courtA.localeCompare(courtB);
+                    }
+                    return a.id - b.id;
+                });
+                
+                const match = playerMatches[row - 1];
+                if (!match) return;
+                
+                const isDuo1 = (match.player1 && match.player1.id === playerId) || (match.player2 && match.player2.id === playerId);
+                const partner = isDuo1 ? 
+                    (match.player1 && match.player1.id !== playerId ? match.player1 : match.player2) :
+                    (match.player3 && match.player3.id !== playerId ? match.player3 : match.player4);
+                    
+                if (partner) {
+                    const partnerInfo = this.getPlayerColAndRow(partner.id, match.id);
+                    if (partnerInfo) {
+                        const partnerCell = document.querySelector(`.grid-cell[data-col="${partnerInfo.col}"][data-row="${partnerInfo.row}"]`);
+                        if (partnerCell) {
+                            partnerCell.value = val;
+                        }
+                    }
+                }
+            }
+        });
+
+        this.refreshGridValues();
+    }
+
+    refreshGridValues() {
+        if (!this.currentTournamentPlayers || !this.currentTournamentMatches) return;
         
-        resultsContainer.style.display = 'block';
-        this.currentOcrResults = results;
+        const maxGames = this.currentTournamentPlayers.length - 1;
+        for (let c = 0; c < this.currentTournamentPlayers.length; c++) {
+            const select = document.querySelector(`.ocr-player-select[data-col="${c}"]`);
+            if (!select) continue;
+            const playerId = parseInt(select.value);
+            
+            const playerMatches = this.currentTournamentMatches.filter(m => 
+                (m.player1 && m.player1.id === playerId) ||
+                (m.player2 && m.player2.id === playerId) ||
+                (m.player3 && m.player3.id === playerId) ||
+                (m.player4 && m.player4.id === playerId)
+            );
+            playerMatches.sort((a, b) => {
+                if (a.roundNumber !== b.roundNumber) {
+                    return (a.roundNumber || 1) - (b.roundNumber || 1);
+                }
+                const courtA = a.courtName || '';
+                const courtB = b.courtName || '';
+                if (courtA !== courtB) {
+                    return courtA.localeCompare(courtB);
+                }
+                return a.id - b.id;
+            });
+            
+            for (let r = 1; r <= maxGames; r++) {
+                const cell = document.querySelector(`.grid-cell[data-col="${c}"][data-row="${r}"]`);
+                if (!cell) continue;
+                
+                const match = playerMatches[r - 1];
+                if (match && match.score1 !== null && match.score2 !== null) {
+                    const isDuo1 = (match.player1 && match.player1.id === playerId) || (match.player2 && match.player2.id === playerId);
+                    cell.value = isDuo1 ? match.score1 : match.score2;
+                } else {
+                    cell.value = '';
+                }
+            }
+        }
+    }
+
+    getPlayerColAndRow(playerId, matchId) {
+        let col = -1;
+        const selects = document.querySelectorAll('.ocr-player-select');
+        selects.forEach(select => {
+            if (parseInt(select.value) === playerId) {
+                col = parseInt(select.getAttribute('data-col'));
+            }
+        });
+        
+        if (col === -1) return null;
+        
+        const playerMatches = this.currentTournamentMatches.filter(m => 
+            (m.player1 && m.player1.id === playerId) ||
+            (m.player2 && m.player2.id === playerId) ||
+            (m.player3 && m.player3.id === playerId) ||
+            (m.player4 && m.player4.id === playerId)
+        );
+        playerMatches.sort((a, b) => {
+            if (a.roundNumber !== b.roundNumber) {
+                return (a.roundNumber || 1) - (b.roundNumber || 1);
+            }
+            const courtA = a.courtName || '';
+            const courtB = b.courtName || '';
+            if (courtA !== courtB) {
+                return courtA.localeCompare(courtB);
+            }
+            return a.id - b.id;
+        });
+        
+        const idx = playerMatches.findIndex(m => m.id === matchId);
+        if (idx === -1) return null;
+        
+        return { col, row: idx + 1 };
     }
 
     async saveOcrResults() {
-        const listContainer = document.getElementById('ocr-matches-list');
-        const inputs1 = listContainer.querySelectorAll('.ocr-score-input[data-team="1"]');
+        const matchUpdates = {};
         
-        const updates = [];
-        inputs1.forEach(input => {
-            const idx = parseInt(input.getAttribute('data-index'));
-            const input2 = listContainer.querySelector(`.ocr-score-input[data-index="${idx}"][data-team="2"]`);
+        for (const match of this.currentTournamentMatches) {
+            let score1 = null;
+            let score2 = null;
             
-            const match = this.currentOcrResults[idx].match;
-            const score1 = parseInt(input.value) || 0;
-            const score2 = parseInt(input2.value) || 0;
+            if (match.player1 || match.player2) {
+                const p = match.player1 || match.player2;
+                const colInfo = this.getPlayerColAndRow(p.id, match.id);
+                if (colInfo) {
+                    const cell = document.querySelector(`.grid-cell[data-col="${colInfo.col}"][data-row="${colInfo.row}"]`);
+                    if (cell && cell.value !== '') {
+                        score1 = parseInt(cell.value);
+                    }
+                }
+            }
             
-            updates.push({
-                matchId: match.id,
-                score1,
-                score2
-            });
-        });
+            if (match.player3 || match.player4) {
+                const p = match.player3 || match.player4;
+                const colInfo = this.getPlayerColAndRow(p.id, match.id);
+                if (colInfo) {
+                    const cell = document.querySelector(`.grid-cell[data-col="${colInfo.col}"][data-row="${colInfo.row}"]`);
+                    if (cell && cell.value !== '') {
+                        score2 = parseInt(cell.value);
+                    }
+                }
+            }
+            
+            if (score1 !== null && score2 !== null) {
+                matchUpdates[match.id] = { score1, score2 };
+            }
+        }
         
-        if (updates.length === 0) return;
+        const updatesList = Object.entries(matchUpdates);
+        if (updatesList.length === 0) {
+            alert('Nenhum placar completo para ser salvo.');
+            return;
+        }
         
         const saveBtn = document.getElementById('btn-save-ocr-results');
         saveBtn.disabled = true;
@@ -1647,8 +1728,8 @@ class BeachTennisApp {
         
         try {
             let successCount = 0;
-            for (const update of updates) {
-                const res = await this.fetchWithRetry(`${API_BASE}/tournaments/matches/${update.matchId}`, {
+            for (const [matchId, update] of updatesList) {
+                const res = await this.fetchWithRetry(`${API_BASE}/tournaments/matches/${matchId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ score1: update.score1, score2: update.score2 })
@@ -1658,7 +1739,7 @@ class BeachTennisApp {
                 }
             }
             
-            alert(`${successCount} placares foram salvos com sucesso!`);
+            alert(`${successCount} partidas atualizadas com sucesso!`);
             this.closeOcrModal();
             await Promise.all([
                 this.loadTournamentMatches(),

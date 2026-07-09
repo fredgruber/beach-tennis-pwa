@@ -466,7 +466,7 @@
 
     <!-- Modal Escanear Placares via OCR -->
     <div class="modal" id="ocr-modal">
-        <div class="modal-content" style="max-width: 550px;">
+        <div class="modal-content" style="max-width: 90%; width: 950px;">
             <div class="modal-header">
                 <h3><i class="fa-solid fa-camera"></i> Escanear Placares via Imagem</h3>
                 <button class="close-modal-btn" id="btn-close-ocr-modal">&times;</button>
@@ -486,10 +486,22 @@
                 </div>
                 
                 <div id="ocr-results-container" style="display: none;">
-                    <h4 style="margin-bottom: 10px; color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 5px;">Resultados Detectados</h4>
-                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">Confirme os placares encontrados abaixo antes de salvar:</p>
-                    <div id="ocr-matches-list" style="max-height: 220px; overflow-y: auto; margin-bottom: 20px; padding: 5px;">
-                        <!-- List of matched matches with inputs -->
+                    <h4 style="margin-bottom: 10px; color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 5px;">Tabela de Resultados da Lousa</h4>
+                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">
+                        Organize as colunas selecionando os jogadores para coincidir com a ordem da lousa. Os placares detectados foram preenchidos na grade abaixo. Você pode editar os valores livremente.
+                    </p>
+                    <div style="overflow-x: auto; margin-bottom: 20px; border: 1px solid #ddd; border-radius: 8px; background: white; padding: 10px;">
+                        <table class="table" style="width: 100%; min-width: 800px; border-collapse: collapse; text-align: center; font-size: 0.85rem;">
+                            <thead>
+                                <tr id="ocr-grid-header">
+                                    <th style="padding: 8px; border-bottom: 2px solid #ddd; background: #f9f9f9; width: 60px;">Jogo</th>
+                                    <!-- Column headers will be dynamically populated in app.js -->
+                                </tr>
+                            </thead>
+                            <tbody id="ocr-grid-body">
+                                <!-- Grid cells will be dynamically populated in app.js -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
