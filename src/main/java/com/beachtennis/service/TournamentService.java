@@ -148,6 +148,12 @@ public class TournamentService {
                 }
                 if (others.size() == 2) {
                     p2 = new Pair(others.get(0), others.get(1));
+                    final Player p2p1 = p2.p1;
+                    final Player p2p2 = p2.p2;
+                    remainingPairs.removeIf(pair -> 
+                        (pair.p1.getId().equals(p2p1.getId()) && pair.p2.getId().equals(p2p2.getId())) ||
+                        (pair.p1.getId().equals(p2p2.getId()) && pair.p2.getId().equals(p2p1.getId()))
+                    );
                 }
             }
 
@@ -468,17 +474,13 @@ public class TournamentService {
             }
         } else {
             List<Player> players = tournament.getPlayers();
-            Set<String> playedPlayerPairs = new HashSet<>();
+            Set<String> playedPartnerPairs = new HashSet<>();
             for (TournamentMatch match : existingMatches) {
-                if (match.getPlayer1() != null && match.getPlayer2() != null &&
-                    match.getPlayer3() != null && match.getPlayer4() != null) {
-                    List<Long> teamASide = List.of(match.getPlayer1().getId(), match.getPlayer2().getId());
-                    List<Long> teamBSide = List.of(match.getPlayer3().getId(), match.getPlayer4().getId());
-                    for (Long pA : teamASide) {
-                        for (Long pB : teamBSide) {
-                            playedPlayerPairs.add(getPairKey(pA, pB));
-                        }
-                    }
+                if (match.getPlayer1() != null && match.getPlayer2() != null) {
+                    playedPartnerPairs.add(getPairKey(match.getPlayer1().getId(), match.getPlayer2().getId()));
+                }
+                if (match.getPlayer3() != null && match.getPlayer4() != null) {
+                    playedPartnerPairs.add(getPairKey(match.getPlayer3().getId(), match.getPlayer4().getId()));
                 }
             }
 
@@ -488,7 +490,7 @@ public class TournamentService {
                     Player p1 = players.get(i);
                     Player p2 = players.get(j);
                     String key = getPairKey(p1.getId(), p2.getId());
-                    if (!playedPlayerPairs.contains(key)) {
+                    if (!playedPartnerPairs.contains(key)) {
                         missingPairs.add(new PlayerPair(p1, p2));
                     }
                 }
@@ -503,40 +505,40 @@ public class TournamentService {
             while (!missingPairs.isEmpty()) {
                 PlayerPair firstPair = missingPairs.remove(0);
                 Player a = firstPair.p1;
-                Player c = firstPair.p2;
+                Player b = firstPair.p2;
 
                 PlayerPair secondPair = null;
                 for (int i = 0; i < missingPairs.size(); i++) {
                     PlayerPair candidate = missingPairs.get(i);
                     if (!candidate.p1.getId().equals(a.getId()) &&
-                        !candidate.p1.getId().equals(c.getId()) &&
+                        !candidate.p1.getId().equals(b.getId()) &&
                         !candidate.p2.getId().equals(a.getId()) &&
-                        !candidate.p2.getId().equals(c.getId())) {
+                        !candidate.p2.getId().equals(b.getId())) {
                         secondPair = missingPairs.remove(i);
                         break;
                     }
                 }
 
-                Player b = null;
+                Player c = null;
                 Player d = null;
                 if (secondPair != null) {
-                    b = secondPair.p1;
+                    c = secondPair.p1;
                     d = secondPair.p2;
                 } else {
                     List<Player> others = new ArrayList<>();
                     for (Player p : players) {
-                        if (!p.getId().equals(a.getId()) && !p.getId().equals(c.getId())) {
+                        if (!p.getId().equals(a.getId()) && !p.getId().equals(b.getId())) {
                             others.add(p);
                         }
                         if (others.size() == 2) break;
                     }
                     if (others.size() == 2) {
-                        b = others.get(0);
+                        c = others.get(0);
                         d = others.get(1);
                     }
                 }
 
-                if (b != null && d != null) {
+                if (c != null && d != null) {
                     TournamentMatch match = new TournamentMatch();
                     match.setTournament(tournament);
                     match.setPlayer1(a);
@@ -576,10 +578,8 @@ public class TournamentService {
 
     private void removeCoveredPairs(List<PlayerPair> missingPairs, Player a, Player b, Player c, Player d) {
         Set<String> covered = new HashSet<>();
-        covered.add(getPairKey(a.getId(), c.getId()));
-        covered.add(getPairKey(a.getId(), d.getId()));
-        covered.add(getPairKey(b.getId(), c.getId()));
-        covered.add(getPairKey(b.getId(), d.getId()));
+        covered.add(getPairKey(a.getId(), b.getId()));
+        covered.add(getPairKey(c.getId(), d.getId()));
 
         missingPairs.removeIf(pair -> covered.contains(getPairKey(pair.p1.getId(), pair.p2.getId())));
     }
