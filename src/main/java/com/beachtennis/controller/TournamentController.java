@@ -1,5 +1,6 @@
 package com.beachtennis.controller;
 
+import com.beachtennis.model.Player;
 import com.beachtennis.model.Tournament;
 import com.beachtennis.model.TournamentMatch;
 import com.beachtennis.model.TournamentType;
@@ -57,6 +58,13 @@ public class TournamentController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
+    }
+
+    @GetMapping("/{id}/players")
+    public ResponseEntity<List<Player>> getTournamentPlayers(@PathVariable Long id) {
+        return tournamentRepository.findById(id)
+                .map(t -> ResponseEntity.ok(t.getPlayers()))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{id}/matches")
