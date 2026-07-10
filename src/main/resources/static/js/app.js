@@ -272,6 +272,18 @@ class BeachTennisApp {
         if (btnOpenAddMatch) {
             btnOpenAddMatch.addEventListener('click', () => this.openAddMatchModal());
         }
+        const btnCloseAddMatch = document.getElementById('btn-close-add-match-modal');
+        if (btnCloseAddMatch) {
+            btnCloseAddMatch.addEventListener('click', () => this.closeAddMatchModal());
+        }
+        const btnCancelAddMatch = document.getElementById('btn-cancel-add-match');
+        if (btnCancelAddMatch) {
+            btnCancelAddMatch.addEventListener('click', () => this.closeAddMatchModal());
+        }
+        const addMatchForm = document.getElementById('add-match-form');
+        if (addMatchForm) {
+            addMatchForm.addEventListener('submit', (e) => this.saveNewMatch(e));
+        }
         const btnGenerateMissing = document.getElementById('btn-generate-missing-matches');
         if (btnGenerateMissing) {
             btnGenerateMissing.addEventListener('click', () => this.handleGenerateMissingMatches());
