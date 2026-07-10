@@ -299,6 +299,10 @@ class BeachTennisApp {
         if (btnOpenOcr) {
             btnOpenOcr.addEventListener('click', () => this.openOcrModal());
         }
+        const btnExportMatches = document.getElementById('btn-export-matches');
+        if (btnExportMatches) {
+            btnExportMatches.addEventListener('click', () => this.exportMatchesToCSV());
+        }
         const btnCloseOcr = document.getElementById('btn-close-ocr-modal');
         if (btnCloseOcr) {
             btnCloseOcr.addEventListener('click', () => this.closeOcrModal());
@@ -757,6 +761,7 @@ class BeachTennisApp {
         const generateMissingBtn = document.getElementById('btn-generate-missing-matches');
         const ocrBtn = document.getElementById('btn-open-ocr-modal');
         const searchInput = document.getElementById('match-search-input');
+        const exportBtn = document.getElementById('btn-export-matches');
         
         if (!this.activeTournamentId) {
             container.innerHTML = `
@@ -770,6 +775,7 @@ class BeachTennisApp {
             if (generateMissingBtn) generateMissingBtn.style.display = 'none';
             if (ocrBtn) ocrBtn.style.display = 'none';
             if (searchInput) searchInput.style.display = 'none';
+            if (exportBtn) exportBtn.style.display = 'none';
             this.currentMatches = [];
             return;
         }
@@ -778,6 +784,7 @@ class BeachTennisApp {
         if (generateMissingBtn) generateMissingBtn.style.display = 'inline-block';
         if (ocrBtn) ocrBtn.style.display = 'inline-block';
         if (searchInput) searchInput.style.display = 'inline-block';
+        if (exportBtn) exportBtn.style.display = 'inline-block';
 
         try {
             const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`);
@@ -793,6 +800,7 @@ class BeachTennisApp {
                 `;
                 filterContainer.innerHTML = '';
                 if (searchInput) searchInput.style.display = 'none';
+                if (exportBtn) exportBtn.style.display = 'none';
                 return;
             }
 
@@ -844,6 +852,65 @@ class BeachTennisApp {
         } else {
             this.renderMatchesList(filtered);
         }
+    }
+
+    exportMatchesToCSV() {
+        if (!this.currentMatches || this.currentMatches.length === 0) {
+            alert('Não há partidas para exportar.');
+            return;
+        }
+
+        const tournament = this.tournaments.find(t => t.id === this.activeTournamentId);
+        const tournamentName = tournament ? tournament.name : 'Torneio';
+
+        // UTF-8 BOM para garantir acentos corretos no Excel
+        let csvContent = '\uFEFF'; 
+        csvContent += 'Rodada;Quadra/Grupo;Status;Dupla 1;Dupla 2;Sets Dupla 1;Sets Dupla 2;Vencedor\n';
+
+        this.currentMatches.forEach(match => {
+            const round = match.roundNumber || '';
+            const court = match.courtName || 'Quadra';
+            const isFinished = match.status === 'FINISHED';
+            const status = isFinished ? 'Finalizado' : 'Pendente';
+            
+            const team1Name = match.player1 && match.player2 ? 
+                (match.team1 ? `${match.player1.name} / ${match.player2.name}` : `${match.player1.name} + ${match.player2.name}`) : 
+                (match.player1 ? match.player1.name : '');
+            
+            const team2Name = match.player3 && match.player4 ? 
+                (match.team2 ? `${match.player3.name} / ${match.player4.name}` : `${match.player3.name} + ${match.player4.name}`) : 
+                (match.player3 ? match.player3.name : '');
+
+            const score1 = isFinished ? match.score1 : '-';
+            const score2 = isFinished ? match.score2 : '-';
+
+            let winner = '-';
+            if (isFinished) {
+                if (match.score1 > match.score2) {
+                    winner = team1Name;
+                } else if (match.score2 > match.score1) {
+                    winner = team2Name;
+                } else {
+                    winner = 'Empate';
+                }
+            }
+
+            csvContent += `"${round}";"${court}";"${status}";"${team1Name}";"${team2Name}";"${score1}";"${score2}";"${winner}"\n`;
+        });
+
+        // Link de download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        
+        const dateStr = new Date().toISOString().split('T')[0];
+        const safeTournamentName = tournamentName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        link.setAttribute('download', `partidas_${safeTournamentName}_${dateStr}.csv`);
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
     async loadTournamentStandings(tournamentId) {
