@@ -1228,9 +1228,15 @@ class BeachTennisApp {
                         <div class="match-score-badge ${winner2 ? 'winner' : ''}">${isFinished ? match.score2 : '-'}</div>
                     </div>
                 </div>
-                <div class="match-footer">
-                    <button class="btn btn-secondary btn-sm btn-block" onclick="app.openScoreModal(${JSON.stringify(match).replace(/"/g, '&quot;')})">
-                        <i class="fa-solid fa-pen-to-square"></i> ${isFinished ? 'Alterar Placar' : 'Lançar Placar'}
+                <div class="match-footer" style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="app.openScoreModal(${JSON.stringify(match).replace(/"/g, '&quot;')})">
+                        <i class="fa-solid fa-pen-to-square"></i> Placar
+                    </button>
+                    <button class="btn btn-info btn-sm" style="flex: 1; background-color: var(--primary-color); border-color: var(--primary-color);" onclick="app.openEditMatchModal(${JSON.stringify(match).replace(/"/g, '&quot;')})">
+                        <i class="fa-solid fa-edit"></i> Editar
+                    </button>
+                    <button class="btn btn-danger btn-sm" style="padding: 4px 10px; background-color: #dc3545; border-color: #dc3545;" onclick="app.deleteMatch(${match.id})">
+                        <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
             `;
@@ -1301,6 +1307,13 @@ class BeachTennisApp {
         const tournament = this.tournaments.find(t => t.id === this.activeTournamentId);
         if (!tournament) return;
 
+        this.matchToEdit = null;
+        
+        const titleEl = document.getElementById('add-match-modal-title');
+        if (titleEl) titleEl.innerText = 'Adicionar Novo Jogo';
+        const submitEl = document.getElementById('btn-submit-add-match');
+        if (submitEl) submitEl.innerText = 'Adicionar Jogo';
+
         const players = [...tournament.players].sort((a, b) => a.name.localeCompare(b.name));
 
         const selects = ['add-match-p1', 'add-match-p2', 'add-match-p3', 'add-match-p4'];
@@ -1323,9 +1336,49 @@ class BeachTennisApp {
         document.getElementById('add-match-modal').classList.add('active');
     }
 
+    openEditMatchModal(match) {
+        if (!this.activeTournamentId) return;
+        const tournament = this.tournaments.find(t => t.id === this.activeTournamentId);
+        if (!tournament) return;
+
+        this.matchToEdit = match;
+        
+        const titleEl = document.getElementById('add-match-modal-title');
+        if (titleEl) titleEl.innerText = 'Editar Partida';
+        const submitEl = document.getElementById('btn-submit-add-match');
+        if (submitEl) submitEl.innerText = 'Salvar Alterações';
+
+        const players = [...tournament.players].sort((a, b) => a.name.localeCompare(b.name));
+
+        const selects = ['add-match-p1', 'add-match-p2', 'add-match-p3', 'add-match-p4'];
+        selects.forEach(selectId => {
+            const selectEl = document.getElementById(selectId);
+            if (selectEl) {
+                selectEl.innerHTML = '<option value="">Selecione...</option>';
+                players.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.innerText = p.name;
+                    selectEl.appendChild(opt);
+                });
+            }
+        });
+
+        // Prefill values
+        if (match.player1) document.getElementById('add-match-p1').value = match.player1.id;
+        if (match.player2) document.getElementById('add-match-p2').value = match.player2.id;
+        if (match.player3) document.getElementById('add-match-p3').value = match.player3.id;
+        if (match.player4) document.getElementById('add-match-p4').value = match.player4.id;
+        document.getElementById('add-match-round').value = match.roundNumber || 1;
+        document.getElementById('add-match-court').value = match.courtName || '';
+
+        document.getElementById('add-match-modal').classList.add('active');
+    }
+
     closeAddMatchModal() {
         document.getElementById('add-match-modal').classList.remove('active');
         document.getElementById('add-match-form').reset();
+        this.matchToEdit = null;
     }
 
     async saveNewMatch(e) {
@@ -1355,11 +1408,22 @@ class BeachTennisApp {
         };
 
         try {
-            const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
+            let res;
+            if (this.matchToEdit) {
+                // Update existing match
+                res = await this.fetchWithRetry(`${API_BASE}/tournaments/matches/${this.matchToEdit.id}/details`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+            } else {
+                // Create new match
+                res = await this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+            }
 
             if (res.ok) {
                 this.closeAddMatchModal();
@@ -1368,10 +1432,33 @@ class BeachTennisApp {
                     this.loadTournamentStandings(this.activeTournamentId)
                 ]);
             } else {
-                alert('Erro ao adicionar partida.');
+                alert(this.matchToEdit ? 'Erro ao salvar alterações na partida.' : 'Erro ao adicionar partida.');
             }
         } catch (err) {
-            console.error('Erro ao adicionar partida:', err);
+            console.error('Erro ao salvar partida:', err);
+        }
+    }
+
+    async deleteMatch(matchId) {
+        if (!confirm('Deseja realmente excluir esta partida? Esta ação é irreversível.')) {
+            return;
+        }
+
+        try {
+            const res = await this.fetchWithRetry(`${API_BASE}/tournaments/matches/${matchId}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                await Promise.all([
+                    this.loadTournamentMatches(),
+                    this.loadTournamentStandings(this.activeTournamentId)
+                ]);
+            } else {
+                alert('Erro ao excluir partida.');
+            }
+        } catch (err) {
+            console.error('Erro ao excluir partida:', err);
         }
     }
 

@@ -209,6 +209,42 @@ public class TournamentService {
         return matchRepository.save(match);
     }
 
+    @Transactional
+    public TournamentMatch updateMatchDetails(Long matchId, TournamentController.AddMatchRequest request) {
+        TournamentMatch match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new IllegalArgumentException("Match not found"));
+        
+        Player p1 = playerRepository.findById(request.getPlayer1Id()).orElseThrow(() -> new IllegalArgumentException("Player 1 not found"));
+        Player p2 = playerRepository.findById(request.getPlayer2Id()).orElseThrow(() -> new IllegalArgumentException("Player 2 not found"));
+        Player p3 = playerRepository.findById(request.getPlayer3Id()).orElseThrow(() -> new IllegalArgumentException("Player 3 not found"));
+        Player p4 = playerRepository.findById(request.getPlayer4Id()).orElseThrow(() -> new IllegalArgumentException("Player 4 not found"));
+
+        match.setPlayer1(p1);
+        match.setPlayer2(p2);
+        match.setPlayer3(p3);
+        match.setPlayer4(p4);
+        match.setRoundNumber(request.getRoundNumber() != null ? request.getRoundNumber() : 1);
+        match.setCourtName(request.getCourtName() != null ? request.getCourtName() : "Quadra 1");
+
+        Tournament tournament = match.getTournament();
+        if (tournament != null && tournament.getType() == TournamentType.DUPLA_FIXA) {
+            Team team1 = findOrCreateTeam(tournament, p1, p2);
+            Team team2 = findOrCreateTeam(tournament, p3, p4);
+            match.setTeam1(team1);
+            match.setTeam2(team2);
+        } else {
+            match.setTeam1(null);
+            match.setTeam2(null);
+        }
+
+        return matchRepository.save(match);
+    }
+
+    @Transactional
+    public void deleteMatch(Long matchId) {
+        matchRepository.deleteById(matchId);
+    }
+
     private Team findOrCreateTeam(Tournament tournament, Player p1, Player p2) {
         List<Team> teams = teamRepository.findByTournament(tournament);
         for (Team t : teams) {

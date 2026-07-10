@@ -108,6 +108,28 @@ public class TournamentController {
         }
     }
 
+    @PutMapping("/matches/{matchId}/details")
+    public ResponseEntity<TournamentMatch> updateMatchDetails(
+            @PathVariable Long matchId,
+            @RequestBody AddMatchRequest request) {
+        try {
+            TournamentMatch updatedMatch = tournamentService.updateMatchDetails(matchId, request);
+            return ResponseEntity.ok(updatedMatch);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @DeleteMapping("/matches/{matchId}")
+    public ResponseEntity<Void> deleteMatch(@PathVariable Long matchId) {
+        try {
+            tournamentService.deleteMatch(matchId);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @GetMapping("/{id}/standings")
     public ResponseEntity<?> getTournamentStandings(@PathVariable Long id) {
         return tournamentRepository.findById(id)
