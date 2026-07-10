@@ -1590,7 +1590,9 @@ class BeachTennisApp {
                     (match.player1 && match.player1.id !== playerId ? match.player1 : match.player2) :
                     (match.player3 && match.player3.id !== playerId ? match.player3 : match.player4);
                     
-                if (partner) {
+                const autoSyncCheckbox = document.getElementById('ocr-auto-sync-partner');
+                const autoSync = autoSyncCheckbox ? autoSyncCheckbox.checked : true;
+                if (partner && autoSync) {
                     const partnerInfo = this.getPlayerColAndRow(partner.id, match.id);
                     if (partnerInfo) {
                         const partnerCell = document.querySelector(`.grid-cell[data-col="${partnerInfo.col}"][data-row="${partnerInfo.row}"]`);

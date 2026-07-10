@@ -487,9 +487,15 @@
                 
                 <div id="ocr-results-container" style="display: none;">
                     <h4 style="margin-bottom: 10px; color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 5px;">Tabela de Resultados da Lousa</h4>
-                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">
+                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">
                         Organize as colunas selecionando os jogadores para coincidir com a ordem da lousa. Os placares detectados foram preenchidos na grade abaixo. Você pode editar os valores livremente.
                     </p>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.02); padding: 8px 12px; border-radius: 6px; border: 1px solid #eee;">
+                        <input type="checkbox" id="ocr-auto-sync-partner" checked style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary-color);">
+                        <label for="ocr-auto-sync-partner" style="font-size: 0.85rem; font-weight: 500; color: var(--dark-color); cursor: pointer; user-select: none; margin: 0;">
+                            Preencher parceiro automaticamente ao digitar placar
+                        </label>
+                    </div>
                     <div style="overflow-x: auto; margin-bottom: 20px; border: 1px solid #ddd; border-radius: 8px; background: white; padding: 10px;">
                         <table class="table" style="width: 100%; min-width: 800px; border-collapse: collapse; text-align: center; font-size: 0.85rem;">
                             <thead>
