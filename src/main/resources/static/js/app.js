@@ -1494,6 +1494,11 @@ class BeachTennisApp {
                             if (cell) {
                                 cell.value = scoreVal;
                             }
+                            const select = document.querySelector(`.ocr-player-select[data-col="${colIndex}"]`);
+                            if (select) {
+                                const playerId = parseInt(select.value);
+                                this.updateMatchScoreInMemory(playerId, rowNum, scoreVal);
+                            }
                         }
                     });
                     processedLines++;
@@ -1564,6 +1569,10 @@ class BeachTennisApp {
                 if (!select) return;
                 const playerId = parseInt(select.value);
                 
+                // 1. Update in memory first
+                this.updateMatchScoreInMemory(playerId, row, val);
+                
+                // 2. Sync partner cell DOM and memory if autoSync is active
                 const playerMatches = this.currentTournamentMatches.filter(m => 
                     (m.player1 && m.player1.id === playerId) ||
                     (m.player2 && m.player2.id === playerId) ||
@@ -1598,6 +1607,8 @@ class BeachTennisApp {
                         const partnerCell = document.querySelector(`.grid-cell[data-col="${partnerInfo.col}"][data-row="${partnerInfo.row}"]`);
                         if (partnerCell) {
                             partnerCell.value = val;
+                            // Also update partner's score in memory (though it's the same score1/score2, call it to be consistent)
+                            this.updateMatchScoreInMemory(partner.id, partnerInfo.row, val);
                         }
                     }
                 }
@@ -1684,37 +1695,44 @@ class BeachTennisApp {
         return { col, row: idx + 1 };
     }
 
+    updateMatchScoreInMemory(playerId, row, val) {
+        const playerMatches = this.currentTournamentMatches.filter(m => 
+            (m.player1 && m.player1.id === playerId) ||
+            (m.player2 && m.player2.id === playerId) ||
+            (m.player3 && m.player3.id === playerId) ||
+            (m.player4 && m.player4.id === playerId)
+        );
+        playerMatches.sort((a, b) => {
+            if (a.roundNumber !== b.roundNumber) {
+                return (a.roundNumber || 1) - (b.roundNumber || 1);
+            }
+            const courtA = a.courtName || '';
+            const courtB = b.courtName || '';
+            if (courtA !== courtB) {
+                return courtA.localeCompare(courtB);
+            }
+            return a.id - b.id;
+        });
+        
+        const match = playerMatches[row - 1];
+        if (!match) return;
+        
+        const isDuo1 = (match.player1 && match.player1.id === playerId) || (match.player2 && match.player2.id === playerId);
+        const parsedVal = val === '' || val === null ? null : parseInt(val);
+        
+        if (isDuo1) {
+            match.score1 = parsedVal;
+        } else {
+            match.score2 = parsedVal;
+        }
+    }
+
     async saveOcrResults() {
         const matchUpdates = {};
         
         for (const match of this.currentTournamentMatches) {
-            let score1 = null;
-            let score2 = null;
-            
-            if (match.player1 || match.player2) {
-                const p = match.player1 || match.player2;
-                const colInfo = this.getPlayerColAndRow(p.id, match.id);
-                if (colInfo) {
-                    const cell = document.querySelector(`.grid-cell[data-col="${colInfo.col}"][data-row="${colInfo.row}"]`);
-                    if (cell && cell.value !== '') {
-                        score1 = parseInt(cell.value);
-                    }
-                }
-            }
-            
-            if (match.player3 || match.player4) {
-                const p = match.player3 || match.player4;
-                const colInfo = this.getPlayerColAndRow(p.id, match.id);
-                if (colInfo) {
-                    const cell = document.querySelector(`.grid-cell[data-col="${colInfo.col}"][data-row="${colInfo.row}"]`);
-                    if (cell && cell.value !== '') {
-                        score2 = parseInt(cell.value);
-                    }
-                }
-            }
-            
-            if (score1 !== null && score2 !== null) {
-                matchUpdates[match.id] = { score1, score2 };
+            if (match.score1 !== null && match.score2 !== null) {
+                matchUpdates[match.id] = { score1: match.score1, score2: match.score2 };
             }
         }
         
