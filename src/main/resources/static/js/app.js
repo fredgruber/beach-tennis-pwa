@@ -1556,7 +1556,8 @@ class BeachTennisApp {
 
         const selects = headerRow.querySelectorAll('.ocr-player-select');
         selects.forEach(select => {
-            select.addEventListener('change', () => this.refreshGridValues());
+            // We do not refresh values on select change to preserve OCR/manual edits in the columns.
+            // When saving, we resolve the mappings dynamically based on the final selections.
         });
 
         tbody.addEventListener('input', (e) => {
@@ -1730,9 +1731,82 @@ class BeachTennisApp {
     async saveOcrResults() {
         const matchUpdates = {};
         
-        for (const match of this.currentTournamentMatches) {
-            if (match.score1 !== null && match.score2 !== null) {
-                matchUpdates[match.id] = { score1: match.score1, score2: match.score2 };
+        // 1. Gather all values from the DOM cells based on CURRENT player dropdown selections
+        const numCols = this.currentTournamentPlayers.length;
+        const maxGames = this.currentTournamentPlayers.length - 1;
+        
+        // Build a map of matchId -> { duo1Scores: [], duo2Scores: [] }
+        const matchDrafts = {};
+        this.currentTournamentMatches.forEach(m => {
+            matchDrafts[m.id] = {
+                match: m,
+                duo1Scores: [],
+                duo2Scores: []
+            };
+        });
+        
+        for (let c = 0; c < numCols; c++) {
+            const select = document.querySelector(`.ocr-player-select[data-col="${c}"]`);
+            if (!select) continue;
+            const playerId = parseInt(select.value);
+            
+            // Get sorted matches for this player
+            const playerMatches = this.currentTournamentMatches.filter(m => 
+                (m.player1 && m.player1.id === playerId) ||
+                (m.player2 && m.player2.id === playerId) ||
+                (m.player3 && m.player3.id === playerId) ||
+                (m.player4 && m.player4.id === playerId)
+            );
+            playerMatches.sort((a, b) => {
+                if (a.roundNumber !== b.roundNumber) {
+                    return (a.roundNumber || 1) - (b.roundNumber || 1);
+                }
+                const courtA = a.courtName || '';
+                const courtB = b.courtName || '';
+                if (courtA !== courtB) {
+                    return courtA.localeCompare(courtB);
+                }
+                return a.id - b.id;
+            });
+            
+            for (let r = 1; r <= maxGames; r++) {
+                const cell = document.querySelector(`.grid-cell[data-col="${c}"][data-row="${r}"]`);
+                if (!cell || cell.value === '') continue;
+                
+                const val = parseInt(cell.value);
+                const match = playerMatches[r - 1];
+                if (!match) continue;
+                
+                const isDuo1 = (match.player1 && match.player1.id === playerId) || (match.player2 && match.player2.id === playerId);
+                if (isDuo1) {
+                    matchDrafts[match.id].duo1Scores.push(val);
+                } else {
+                    matchDrafts[match.id].duo2Scores.push(val);
+                }
+            }
+        }
+        
+        // 2. Resolve the final score for each match
+        for (const [matchId, draft] of Object.entries(matchDrafts)) {
+            const m = draft.match;
+            let score1 = null;
+            let score2 = null;
+            
+            // Resolve score1 (Duo 1)
+            if (draft.duo1Scores.length > 0) {
+                // If there's a score different from the original m.score1, use it. Otherwise use the first one.
+                const diffScore = draft.duo1Scores.find(s => s !== m.score1);
+                score1 = diffScore !== undefined ? diffScore : draft.duo1Scores[0];
+            }
+            
+            // Resolve score2 (Duo 2)
+            if (draft.duo2Scores.length > 0) {
+                const diffScore = draft.duo2Scores.find(s => s !== m.score2);
+                score2 = diffScore !== undefined ? diffScore : draft.duo2Scores[0];
+            }
+            
+            if (score1 !== null && score2 !== null) {
+                matchUpdates[matchId] = { score1, score2 };
             }
         }
         
