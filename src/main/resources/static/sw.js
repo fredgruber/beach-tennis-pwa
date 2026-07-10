@@ -1,4 +1,4 @@
-const CACHE_NAME = 'arena-beach-tennis-v6';
+const CACHE_NAME = 'arena-beach-tennis-v7';
 const ASSETS_TO_CACHE = [
   '/index.html',
   '/css/style.css',

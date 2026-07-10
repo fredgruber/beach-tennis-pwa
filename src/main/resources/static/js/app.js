@@ -253,9 +253,16 @@ class BeachTennisApp {
 
         // Seleção de torneio nas abas de Partidas e Classificação
         document.getElementById('matches-tournament-select').addEventListener('change', (e) => {
+            const searchInput = document.getElementById('match-search-input');
+            if (searchInput) searchInput.value = '';
             this.activeTournamentId = e.target.value ? parseInt(e.target.value) : null;
             this.loadTournamentMatches();
         });
+
+        const matchSearchInput = document.getElementById('match-search-input');
+        if (matchSearchInput) {
+            matchSearchInput.addEventListener('input', () => this.filterMatchesBySearch());
+        }
 
         document.getElementById('standings-tournament-select').addEventListener('change', (e) => {
             const id = e.target.value ? parseInt(e.target.value) : null;
@@ -749,6 +756,7 @@ class BeachTennisApp {
         const addMatchBtn = document.getElementById('btn-open-add-match-modal');
         const generateMissingBtn = document.getElementById('btn-generate-missing-matches');
         const ocrBtn = document.getElementById('btn-open-ocr-modal');
+        const searchInput = document.getElementById('match-search-input');
         
         if (!this.activeTournamentId) {
             container.innerHTML = `
@@ -761,16 +769,20 @@ class BeachTennisApp {
             if (addMatchBtn) addMatchBtn.style.display = 'none';
             if (generateMissingBtn) generateMissingBtn.style.display = 'none';
             if (ocrBtn) ocrBtn.style.display = 'none';
+            if (searchInput) searchInput.style.display = 'none';
+            this.currentMatches = [];
             return;
         }
 
         if (addMatchBtn) addMatchBtn.style.display = 'inline-block';
         if (generateMissingBtn) generateMissingBtn.style.display = 'inline-block';
         if (ocrBtn) ocrBtn.style.display = 'inline-block';
+        if (searchInput) searchInput.style.display = 'inline-block';
 
         try {
             const res = await this.fetchWithRetry(`${API_BASE}/tournaments/${this.activeTournamentId}/matches`);
             const matches = await res.json();
+            this.currentMatches = matches;
             
             if (matches.length === 0) {
                 container.innerHTML = `
@@ -780,6 +792,7 @@ class BeachTennisApp {
                     </div>
                 `;
                 filterContainer.innerHTML = '';
+                if (searchInput) searchInput.style.display = 'none';
                 return;
             }
 
@@ -787,15 +800,49 @@ class BeachTennisApp {
             const rounds = [...new Set(matches.map(m => m.roundNumber))].sort((a, b) => a - b);
             this.renderRoundFilter(rounds);
 
-            // Filtrar partidas
-            let filteredMatches = matches;
-            if (this.activeRoundFilter !== 'all') {
-                filteredMatches = matches.filter(m => m.roundNumber === parseInt(this.activeRoundFilter));
-            }
-
-            this.renderMatchesList(filteredMatches);
+            this.filterMatchesBySearch();
         } catch (err) {
             console.error('Erro ao carregar partidas:', err);
+        }
+    }
+
+    filterMatchesBySearch() {
+        if (!this.currentMatches) return;
+        const searchInput = document.getElementById('match-search-input');
+        const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+        let filtered = this.currentMatches;
+
+        // 1. Filtrar por rodada
+        if (this.activeRoundFilter !== 'all') {
+            filtered = filtered.filter(m => m.roundNumber === parseInt(this.activeRoundFilter));
+        }
+
+        // 2. Filtrar por busca (jogador ou dupla)
+        if (query) {
+            filtered = filtered.filter(m => {
+                const p1 = m.player1 ? m.player1.name.toLowerCase() : '';
+                const p2 = m.player2 ? m.player2.name.toLowerCase() : '';
+                const p3 = m.player3 ? m.player3.name.toLowerCase() : '';
+                const p4 = m.player4 ? m.player4.name.toLowerCase() : '';
+                
+                const t1 = m.team1 ? m.team1.name.toLowerCase() : '';
+                const t2 = m.team2 ? m.team2.name.toLowerCase() : '';
+
+                return p1.includes(query) || p2.includes(query) || p3.includes(query) || p4.includes(query) || t1.includes(query) || t2.includes(query);
+            });
+        }
+
+        const container = document.getElementById('matches-list-container');
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div class="no-data-card" style="grid-column: 1 / -1;">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <p>Nenhuma partida encontrada com o termo buscado.</p>
+                </div>
+            `;
+        } else {
+            this.renderMatchesList(filtered);
         }
     }
 
