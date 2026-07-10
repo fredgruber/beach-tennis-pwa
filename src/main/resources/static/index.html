@@ -284,8 +284,8 @@
             <!-- TAB: Matches -->
             <section id="tab-matches" class="tab-content">
                 <div class="card mb-6">
-                    <div class="card-header flex-row justify-between align-center">
-                        <div class="flex-row align-center gap-4 flex-wrap">
+                    <div class="card-header" style="flex-direction: column; align-items: flex-start; gap: 1rem; width: 100%;">
+                        <div class="flex-row align-center gap-4 flex-wrap" style="width: 100%;">
                             <h2><i class="fa-solid fa-calendar-days text-blue"></i> Tabela de Jogos</h2>
                             <select id="matches-tournament-select" class="form-control-inline">
                                 <option value="">Selecione um Torneio...</option>
@@ -304,7 +304,7 @@
                                 <i class="fa-solid fa-file-excel"></i> Exportar Excel
                             </button>
                         </div>
-                        <div class="filter-rounds" id="rounds-filter-container">
+                        <div class="filter-rounds" id="rounds-filter-container" style="width: 100%; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px; margin-top: 4px;">
                             <!-- Round buttons will go here -->
                         </div>
                     </div>
@@ -359,7 +359,7 @@
             
             <!-- Footer -->
             <footer class="app-footer" style="text-align: center; padding: 1.5rem 0; margin-top: 3rem; font-size: 0.85rem; color: #8892b0; border-top: 1px solid rgba(255,255,255,0.05);">
-                Copyright @Arena BtBrothers 2.0.7
+                Copyright @Arena BtBrothers 2.0.8
             </footer>
         </main>
 
