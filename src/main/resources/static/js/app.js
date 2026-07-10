@@ -1800,9 +1800,9 @@ class BeachTennisApp {
             
             for (let r = 1; r <= maxGames; r++) {
                 const cell = document.querySelector(`.grid-cell[data-col="${c}"][data-row="${r}"]`);
-                if (!cell || cell.value === '') continue;
+                if (!cell) continue;
                 
-                const val = parseInt(cell.value);
+                const val = cell.value === '' ? null : parseInt(cell.value);
                 const match = playerMatches[r - 1];
                 if (!match) continue;
                 
@@ -1818,30 +1818,33 @@ class BeachTennisApp {
         // 2. Resolve the final score for each match
         for (const [matchId, draft] of Object.entries(matchDrafts)) {
             const m = draft.match;
+            
+            // Filter out nulls to get numbers
+            const duo1Nums = draft.duo1Scores.filter(s => s !== null);
+            const duo2Nums = draft.duo2Scores.filter(s => s !== null);
+            
             let score1 = null;
             let score2 = null;
             
-            // Resolve score1 (Duo 1)
-            if (draft.duo1Scores.length > 0) {
-                // If there's a score different from the original m.score1, use it. Otherwise use the first one.
-                const diffScore = draft.duo1Scores.find(s => s !== m.score1);
-                score1 = diffScore !== undefined ? diffScore : draft.duo1Scores[0];
+            if (duo1Nums.length > 0) {
+                const diffScore = duo1Nums.find(s => s !== m.score1);
+                score1 = diffScore !== undefined ? diffScore : duo1Nums[0];
             }
             
-            // Resolve score2 (Duo 2)
-            if (draft.duo2Scores.length > 0) {
-                const diffScore = draft.duo2Scores.find(s => s !== m.score2);
-                score2 = diffScore !== undefined ? diffScore : draft.duo2Scores[0];
+            if (duo2Nums.length > 0) {
+                const diffScore = duo2Nums.find(s => s !== m.score2);
+                score2 = diffScore !== undefined ? diffScore : duo2Nums[0];
             }
             
-            if (score1 !== null && score2 !== null) {
+            // Only add to matchUpdates if score1 or score2 is different from original
+            if (score1 !== m.score1 || score2 !== m.score2) {
                 matchUpdates[matchId] = { score1, score2 };
             }
         }
         
         const updatesList = Object.entries(matchUpdates);
         if (updatesList.length === 0) {
-            alert('Nenhum placar completo para ser salvo.');
+            alert('Nenhuma alteração nos placares para ser salva.');
             return;
         }
         
