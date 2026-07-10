@@ -292,6 +292,10 @@ class BeachTennisApp {
         if (btnSaveOcr) {
             btnSaveOcr.addEventListener('click', () => this.saveOcrResults());
         }
+        const btnClearOcr = document.getElementById('btn-clear-ocr-scores');
+        if (btnClearOcr) {
+            btnClearOcr.addEventListener('click', () => this.clearOcrScores());
+        }
 
         const fileInput = document.getElementById('ocr-file-input');
         const uploadArea = document.getElementById('ocr-upload-area');
@@ -1410,6 +1414,8 @@ class BeachTennisApp {
         document.getElementById('ocr-status').style.display = 'none';
         document.getElementById('ocr-results-container').style.display = 'none';
         document.getElementById('btn-save-ocr-results').style.display = 'none';
+        const btnClearOcr = document.getElementById('btn-clear-ocr-scores');
+        if (btnClearOcr) btnClearOcr.style.display = 'none';
         
         try {
             const [playersRes, matchesRes] = await Promise.all([
@@ -1429,6 +1435,7 @@ class BeachTennisApp {
                 document.getElementById('ocr-modal').classList.add('active');
                 document.getElementById('ocr-results-container').style.display = 'block';
                 document.getElementById('btn-save-ocr-results').style.display = 'inline-block';
+                if (btnClearOcr) btnClearOcr.style.display = 'inline-block';
             } else {
                 alert('Erro ao carregar dados do torneio.');
             }
@@ -1442,6 +1449,28 @@ class BeachTennisApp {
         document.getElementById('ocr-modal').classList.remove('active');
         this.currentTournamentPlayers = null;
         this.currentTournamentMatches = null;
+        const btnClearOcr = document.getElementById('btn-clear-ocr-scores');
+        if (btnClearOcr) btnClearOcr.style.display = 'none';
+    }
+
+    clearOcrScores() {
+        if (!confirm('Deseja realmente zerar todos os placares desta tabela? Os placares atuais serão limpos e você poderá digitá-los manualmente.')) {
+            return;
+        }
+        
+        // Clear all inputs in DOM
+        const inputs = document.querySelectorAll('.grid-cell');
+        inputs.forEach(input => {
+            input.value = '';
+        });
+        
+        // Reset scores in memory
+        if (this.currentTournamentMatches) {
+            this.currentTournamentMatches.forEach(match => {
+                match.score1 = null;
+                match.score2 = null;
+            });
+        }
     }
 
     handleOcrFile(file) {
